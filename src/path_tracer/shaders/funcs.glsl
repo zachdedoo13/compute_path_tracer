@@ -5,3 +5,24 @@ vec2 calc_uv(ivec2 gl_uv, ivec2 dimentions) {
 
     return uv;
 }
+
+vec3 calc_point(Ray ray, float dist) {
+    return ray.ro + ray.rd * dist;
+}
+
+
+float pull(vec3 p, vec3 e)
+{
+    return map(p + e).d;
+}
+
+vec3 calc_normal(vec3 p) {
+    const vec3 e = vec3(.001, 0.0, 0.0);
+    return normalize(
+        vec3(
+            pull(p, e.xyy) - pull(p, -e.xyy),
+            pull(p, e.yxy) - pull(p, -e.yxy),
+            pull(p, e.yyx) - pull(p, -e.yyx)
+        )
+    );
+}

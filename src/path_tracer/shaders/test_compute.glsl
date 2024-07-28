@@ -24,13 +24,11 @@ layout(set = 1, binding = 0) uniform Constants {
 struct Ray {vec3 ro; vec3 rd; };
 struct Hit {float d; };
 
+
+#include "shapes.glsl"
+#include "map.glsl"
 #include "funcs.glsl"
 
-
-
-Hit map(vec3 p) {
-    return Hit(length(p) - 1.0);
-}
 
 Hit CastRay(Ray ray) {
     float t = 0.0;
@@ -43,6 +41,15 @@ Hit CastRay(Ray ray) {
         if (t > FP) break;
     }
     return Hit(t);
+}
+
+vec3 path_trace(Ray ray) {
+
+    Hit test = CastRay(ray);
+
+    if (test.d > FP) { return vec3(0.0); }
+
+    return calc_normal(calc_point(ray, test.d));
 }
 
 
@@ -58,10 +65,7 @@ void main() {
         normalize(vec3(uv, 1.0)) // direction
     );
 
+    vec3 col = path_trace(ray);
 
-    Hit test = CastRay(ray);
-
-
-
-    imageStore(the_texture, gl_uv, vec4( SAO1 / vec3(test.d / FP), 1.0));
+    imageStore(the_texture, gl_uv, vec4(col, 1.0));
 }

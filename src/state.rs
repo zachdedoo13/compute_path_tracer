@@ -1,3 +1,4 @@
+use std::f32::consts::PI;
 use std::iter;
 use cgmath::Vector3;
 use egui::{Align2, Context, Frame, Pos2, Rect, Sense, Style, Ui, Vec2};
@@ -200,8 +201,10 @@ impl NodeEditor {
    }
 
    pub fn ui(&mut self, ui: &Context) {
-      egui::Window::new("↔ freely resized")
-          .default_open(true)
+      let mut changed = false;
+
+      egui::Window::new("Map editor")
+          .default_open(false)
           .resizable(true)
           .default_size(Vec2::new(100.0, 100.0))
           .max_size(self.max_size)
@@ -215,70 +218,99 @@ impl NodeEditor {
 
              let mut kill = None;
              for (i, node) in self.nodes.iter_mut().enumerate() {
+                let original_node = node.clone();
                 if node.draw(ui, ui.min_rect().min, self.max_size) {
                    kill = Some(i)
                 }
+
+                if *node != original_node {
+                   changed = true
+                }
+
              }
              if let Some(index) = kill { self.nodes.remove(index); }
-
-
           });
+
+      if changed {
+         println!("changed")
+      }
+
    }
 }
 
 
+#[derive(Clone)]
+#[derive(PartialEq)]
 struct Node {
-   position: Pos2,
+   screen_position: Pos2,
    size: Vec2,
    title: String,
 
-   world_position: Vector3<f32>
+   position: Vector3<f32>,
+   rotation: Vector3<f32>,
 }
 impl Node {
-   fn new(position: Pos2, size: Vec2, title: String) -> Self {
+   fn new(screen_position: Pos2, size: Vec2, title: String) -> Self {
       Self {
-         position,
+         screen_position,
          size,
          title,
-         world_position: Vector3::new(0.0, 0.0, 0.0),
+
+         position: Vector3::new(0.0, 0.0, 0.0),
+         rotation: Vector3::new(0.0, 0.0, 0.0),
       }
    }
 
+   fn contents<'a>(&'a mut self, back: &'a mut bool) -> impl FnMut(&mut Ui) + '_ {
+      let contents = |ui: &mut Ui| {
+         egui::CollapsingHeader::new(&self.title)
+             .default_open(true)
+             .show(ui, |ui| {
+
+                if ui.button("remove").clicked() {
+                   *back = true;
+                }
+
+                egui::CollapsingHeader::new("position")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                       ui.add(egui::DragValue::new(&mut self.position.x).speed(0.01).clamp_range(-100.0..=100.0).prefix("X: "));
+                       ui.add(egui::DragValue::new(&mut self.position.y).speed(0.01).clamp_range(-100.0..=100.0).prefix("Y: "));
+                       ui.add(egui::DragValue::new(&mut self.position.z).speed(0.01).clamp_range(-100.0..=100.0).prefix("Z: "));
+                    });
+
+                egui::CollapsingHeader::new("rotation")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                       ui.add(egui::DragValue::new(&mut self.rotation.x).speed(0.01).clamp_range(-PI..=PI).prefix("X: "));
+                       ui.add(egui::DragValue::new(&mut self.rotation.y).speed(0.01).clamp_range(-PI..=PI).prefix("Y: "));
+                       ui.add(egui::DragValue::new(&mut self.rotation.z).speed(0.01).clamp_range(-PI..=PI).prefix("Z: "));
+                    });
+
+             });
+      };
+
+      contents
+   }
+
    fn draw(&mut self, ui: &mut Ui, window_pos: Pos2, max_size: Vec2) -> bool {
-      let rect = Rect::from_min_size(window_pos + self.position.to_vec2(), self.size);
+      let rect = Rect::from_min_size(window_pos + self.screen_position.to_vec2(), self.size);
       let response = ui.allocate_rect(rect, Sense::click_and_drag());
 
       if response.dragged() {
-         self.position += response.drag_delta();
+         self.screen_position += response.drag_delta();
 
-         if self.position.x < 0.0 {self.position.x = 0.0}
-         if self.position.y < 0.0 {self.position.y = 0.0}
+         if self.screen_position.x < 0.0 {self.screen_position.x = 0.0}
+         if self.screen_position.y < 0.0 {self.screen_position.y = 0.0}
 
-         if self.position.x > max_size.x {self.position.x = max_size.x}
-         if self.position.y > max_size.y {self.position.y = max_size.y}
+         if self.screen_position.x > max_size.x {self.screen_position.x = max_size.x}
+         if self.screen_position.y > max_size.y {self.screen_position.y = max_size.y}
       }
 
       let mut back = false;
+
       ui.allocate_ui_at_rect(rect, |ui| {
-         ui.group(|ui| {
-            egui::CollapsingHeader::new(&self.title)
-                .default_open(true)
-                .show(ui, |ui| {
-
-                   if ui.button("remove").clicked() {
-                     back = true;
-                   }
-
-                   egui::CollapsingHeader::new("position")
-                       .default_open(false)
-                       .show(ui, |ui| {
-                          ui.add(egui::DragValue::new(&mut self.world_position.x).speed(0.01).clamp_range(-100.0..=100.0).prefix("X: "));
-                          ui.add(egui::DragValue::new(&mut self.world_position.y).speed(0.01).clamp_range(-100.0..=100.0).prefix("Y: "));
-                          ui.add(egui::DragValue::new(&mut self.world_position.z).speed(0.01).clamp_range(-100.0..=100.0).prefix("Z: "));
-                       });
-
-                });
-         });
+         ui.group(self.contents(&mut back));
       });
 
       back

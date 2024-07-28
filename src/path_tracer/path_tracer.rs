@@ -20,11 +20,9 @@ pub struct PathTracer {
 impl PathTracer {
    pub fn new(setup: &Setup, storage_texture_package: &StorageTexturePackage) -> Self {
 
-      let shader = Self::load_shader(setup);
-
-
       let constants = UniformPackageSingles::create(&setup, ShaderStages::COMPUTE, Constants::default());
 
+      let shader = Self::load_shader(setup);
 
       let compute_pipeline_layout = setup.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
          label: Some("compute Pipeline Layout"),
@@ -34,7 +32,6 @@ impl PathTracer {
          ],
          push_constant_ranges: &[],
       });
-
       let compute_pipeline = setup.device.create_compute_pipeline(&ComputePipelineDescriptor {
          label: Some("compute path trace pipeline"),
          layout: Some(&compute_pipeline_layout),
@@ -46,6 +43,26 @@ impl PathTracer {
          pipeline: compute_pipeline,
          constants,
       }
+   }
+
+   pub fn remake_pipeline(&mut self, setup: &Setup, storage_texture_package: &StorageTexturePackage) {
+      let shader = Self::load_shader(setup);
+
+      let compute_pipeline_layout = setup.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+         label: Some("compute Pipeline Layout"),
+         bind_group_layouts: &[
+            &storage_texture_package.bind_group_layout,
+            &self.constants.layout,
+         ],
+         push_constant_ranges: &[],
+      });
+
+      self.pipeline = setup.device.create_compute_pipeline(&ComputePipelineDescriptor {
+         label: Some("compute path trace pipeline"),
+         layout: Some(&compute_pipeline_layout),
+         module: &shader,
+         entry_point: "main",
+      });
    }
 
    pub fn load_shader(setup: &Setup) -> ShaderModule {
