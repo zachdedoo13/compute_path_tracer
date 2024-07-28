@@ -10,7 +10,7 @@ impl GlslPreprocessor {
           .expect("couldn't find input");
 
       shader_code = Self::handle_hash(shader_code, path);
-      println!("handled hash");
+      println!("handled directives");
 
       fs::write(output, shader_code).expect("failed to write to output path");
 

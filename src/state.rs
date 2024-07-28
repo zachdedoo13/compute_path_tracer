@@ -182,7 +182,7 @@ impl<'a> State<'a> {
 
 
 struct NodeEditor {
-   size: Vec2,
+   max_size: Vec2,
    nodes: Vec<Node>,
 }
 
@@ -194,7 +194,7 @@ impl NodeEditor {
       ];
 
       Self {
-         size: Vec2::new(200.0, 200.0),
+         max_size: Vec2::new(600.0, 600.0),
          nodes,
       }
    }
@@ -203,21 +203,25 @@ impl NodeEditor {
       egui::Window::new("↔ freely resized")
           .default_open(true)
           .resizable(true)
-          .default_size(self.size)
-          .max_size(self.size)
+          .default_size(Vec2::new(100.0, 100.0))
+          .max_size(self.max_size)
+          .frame(Frame::window(&Style::default()))
           .show(&ui, |ui| {
              if ui.button("add").clicked() {
                 self.nodes.push(Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), format!("num={}", self.nodes.len())))
              }
 
-
              ui.allocate_space(ui.available_size());
 
-
-
-             for node in self.nodes.iter_mut() {
-               node.draw(ui, ui.min_rect().min);
+             let mut kill = None;
+             for (i, node) in self.nodes.iter_mut().enumerate() {
+                if node.draw(ui, ui.min_rect().min, self.max_size) {
+                   kill = Some(i)
+                }
              }
+             if let Some(index) = kill { self.nodes.remove(index); }
+
+
           });
    }
 }
@@ -240,7 +244,7 @@ impl Node {
       }
    }
 
-   fn draw(&mut self, ui: &mut Ui, window_pos: Pos2) {
+   fn draw(&mut self, ui: &mut Ui, window_pos: Pos2, max_size: Vec2) -> bool {
       let rect = Rect::from_min_size(window_pos + self.position.to_vec2(), self.size);
       let response = ui.allocate_rect(rect, Sense::click_and_drag());
 
@@ -249,13 +253,21 @@ impl Node {
 
          if self.position.x < 0.0 {self.position.x = 0.0}
          if self.position.y < 0.0 {self.position.y = 0.0}
+
+         if self.position.x > max_size.x {self.position.x = max_size.x}
+         if self.position.y > max_size.y {self.position.y = max_size.y}
       }
 
+      let mut back = false;
       ui.allocate_ui_at_rect(rect, |ui| {
          ui.group(|ui| {
             egui::CollapsingHeader::new(&self.title)
                 .default_open(true)
                 .show(ui, |ui| {
+
+                   if ui.button("remove").clicked() {
+                     back = true;
+                   }
 
                    egui::CollapsingHeader::new("position")
                        .default_open(false)
@@ -268,5 +280,7 @@ impl Node {
                 });
          });
       });
+
+      back
    }
 }
