@@ -118,10 +118,10 @@ pub struct StorageTexturePackage {
    pub bind_group: BindGroup,
 }
 impl StorageTexturePackage {
-   pub fn new(setup: &Setup, size: (u32, u32)) -> Self {
+   pub fn new(setup: &Setup, size: (f32, f32)) -> Self {
       let size = Extent3d {
-         width: size.0,
-         height: size.1,
+         width: size.0 as u32,
+         height: size.1 as u32,
          // width: 128,
          // height: 128,
          depth_or_array_layers: 1,
@@ -177,5 +177,9 @@ impl StorageTexturePackage {
          bind_group_layout,
          bind_group,
       }
+   }
+
+   pub fn remake(&mut self, setup: &Setup, size: (f32, f32)) {
+      *self = Self::new(setup, size);
    }
 }

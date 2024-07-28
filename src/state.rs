@@ -1,5 +1,6 @@
 use std::iter;
-use egui::{Align2, Context, Frame, Style, Ui};
+use cgmath::Vector3;
+use egui::{Align2, Context, Frame, Pos2, Rect, Sense, Style, Ui, Vec2};
 use egui_wgpu::ScreenDescriptor;
 use wgpu::{CommandEncoder, TextureView, TextureViewDescriptor};
 use winit::dpi::PhysicalSize;
@@ -17,6 +18,8 @@ pub struct State<'a> {
    pub setup: Setup<'a>,
    pub egui: EguiRenderer,
 
+   pub resized: bool,
+
    // packages
    time_package: TimePackage,
    input_manager: InputManager,
@@ -25,6 +28,7 @@ pub struct State<'a> {
    render_texture_pipeline: RenderTexturePipeline,
 
    path_tracer: PathTracer,
+   node_editor: NodeEditor,
 }
 
 impl<'a> State<'a> {
@@ -40,14 +44,17 @@ impl<'a> State<'a> {
       let input_manager = InputManager::new();
 
 
-      let render_texture = StorageTexturePackage::new(&setup, (1800, 1800));
+      let render_texture = StorageTexturePackage::new(&setup, (10.0, 10.0));
       let render_texture_pipeline = RenderTexturePipeline::new(&setup, &render_texture);
 
       let path_tracer = PathTracer::new(&setup, &render_texture);
 
+      let node_editor = NodeEditor::new();
+
       Self {
          setup,
          egui,
+         resized: false,
 
          time_package,
          input_manager,
@@ -56,6 +63,8 @@ impl<'a> State<'a> {
          render_texture_pipeline,
 
          path_tracer,
+
+         node_editor,
       }
    }
 
@@ -65,6 +74,8 @@ impl<'a> State<'a> {
          self.setup.config.width = new_size.width;
          self.setup.config.height = new_size.height;
          self.setup.surface.configure(&self.setup.device, &self.setup.config);
+
+         self.resized = true;
       }
    }
 
@@ -76,9 +87,10 @@ impl<'a> State<'a> {
    pub fn update(&mut self) {
       self.time_package.update();
 
-      self.path_tracer.update(&self.setup, &self.render_texture, &self.time_package);
+      self.path_tracer.update(&self.setup, &mut self.render_texture, &self.time_package, &self.input_manager, self.resized);
 
       self.input_manager.reset();
+      self.resized = false;
    }
 
    pub fn update_gui(&mut self, view: &TextureView, encoder: &mut CommandEncoder) {
@@ -118,7 +130,7 @@ impl<'a> State<'a> {
             }
 
             // add other ui hear
-
+            self.path_tracer.gui(ui);
          };
 
          // Pre draw setup
@@ -131,6 +143,8 @@ impl<'a> State<'a> {
              .anchor(Align2::LEFT_TOP, [0.0, 0.0])
              .frame(Frame::window(&Style::default()))
              .show(&ui, code);
+
+         self.node_editor.ui(ui)
       };
 
       self.egui.draw(
@@ -163,5 +177,96 @@ impl<'a> State<'a> {
       output.present();
 
       Ok(())
+   }
+}
+
+
+struct NodeEditor {
+   size: Vec2,
+   nodes: Vec<Node>,
+}
+
+impl NodeEditor {
+   pub fn new() -> Self {
+      let nodes = vec![
+         Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), "Node 1".to_string()),
+         Node::new(Pos2::new(200.0, 50.0), Vec2::new(100.0, 50.0), "Node 2".to_string()),
+      ];
+
+      Self {
+         size: Vec2::new(200.0, 200.0),
+         nodes,
+      }
+   }
+
+   pub fn ui(&mut self, ui: &Context) {
+      egui::Window::new("↔ freely resized")
+          .default_open(true)
+          .resizable(true)
+          .default_size(self.size)
+          .max_size(self.size)
+          .show(&ui, |ui| {
+             if ui.button("add").clicked() {
+                self.nodes.push(Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), format!("num={}", self.nodes.len())))
+             }
+
+
+             ui.allocate_space(ui.available_size());
+
+
+
+             for node in self.nodes.iter_mut() {
+               node.draw(ui, ui.min_rect().min);
+             }
+          });
+   }
+}
+
+
+struct Node {
+   position: Pos2,
+   size: Vec2,
+   title: String,
+
+   world_position: Vector3<f32>
+}
+impl Node {
+   fn new(position: Pos2, size: Vec2, title: String) -> Self {
+      Self {
+         position,
+         size,
+         title,
+         world_position: Vector3::new(0.0, 0.0, 0.0),
+      }
+   }
+
+   fn draw(&mut self, ui: &mut Ui, window_pos: Pos2) {
+      let rect = Rect::from_min_size(window_pos + self.position.to_vec2(), self.size);
+      let response = ui.allocate_rect(rect, Sense::click_and_drag());
+
+      if response.dragged() {
+         self.position += response.drag_delta();
+
+         if self.position.x < 0.0 {self.position.x = 0.0}
+         if self.position.y < 0.0 {self.position.y = 0.0}
+      }
+
+      ui.allocate_ui_at_rect(rect, |ui| {
+         ui.group(|ui| {
+            egui::CollapsingHeader::new(&self.title)
+                .default_open(true)
+                .show(ui, |ui| {
+
+                   egui::CollapsingHeader::new("position")
+                       .default_open(false)
+                       .show(ui, |ui| {
+                          ui.add(egui::DragValue::new(&mut self.world_position.x).speed(0.01).clamp_range(-100.0..=100.0).prefix("X: "));
+                          ui.add(egui::DragValue::new(&mut self.world_position.y).speed(0.01).clamp_range(-100.0..=100.0).prefix("Y: "));
+                          ui.add(egui::DragValue::new(&mut self.world_position.z).speed(0.01).clamp_range(-100.0..=100.0).prefix("Z: "));
+                       });
+
+                });
+         });
+      });
    }
 }
