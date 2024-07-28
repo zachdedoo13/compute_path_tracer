@@ -1,27 +1,24 @@
 use std::fs;
 use std::path::Path;
-use std::time::Instant;
-
 pub struct GlslPreprocessor;
 impl GlslPreprocessor {
-   pub fn do_the_thing(path: &Box<Path>, output: &Box<Path>) {
-      let st = Instant::now();
+   pub fn do_the_thing(path: &Box<Path>, output: &Box<Path>, include_overrides: Vec<(String, String)>) {
       let mut shader_code = fs::read_to_string(path)
           .expect("couldn't find input");
 
-      shader_code = Self::handle_hash(shader_code, path);
-      println!("handled directives");
+      shader_code = Self::handle_hash(shader_code, path, include_overrides);
+      // println!("handled directives");
 
       fs::write(output, shader_code).expect("failed to write to output path");
 
-      println!("processed {:?} in {:?}\n////////////////////\n", path, st.elapsed());
+      // println!("processed {:?} in {:?}\n////////////////////\n", path, st.elapsed());
    }
 
-   fn handle_hash(shader_code: String, start_path: &Box<Path>) -> String {
+   fn handle_hash(shader_code: String, start_path: &Box<Path>, include_overrides: Vec<(String, String)>) -> String {
       let mut out = String::new();
 
       let mut past_includes = vec![];
-      for line in shader_code.lines() {
+      'lines: for line in shader_code.lines() {
          if let Some(hash_pos) = line.find("#") {
 
             let directive_full = &line[hash_pos+1..].trim();
@@ -46,7 +43,21 @@ impl GlslPreprocessor {
                let target_dir = start_path.parent().unwrap();
 
                let following_path = following_text.replace("\"", "");
-               let target_file_path = target_dir.join(following_path);
+               let target_file_path = target_dir.join(following_path.clone());
+
+               for (path, data) in include_overrides.iter() {
+                  if following_path == path.as_str() {
+                     let target_code = data;
+
+                     out.push_str(format!("// included override {:?}\n", &target_file_path).as_str());
+                     out.push_str(target_code.as_str());
+                     out.push_str("\n// end include\n");
+
+                     past_includes.push(following_text);
+
+                     continue 'lines;
+                  }
+               }
 
                if fs::metadata(&target_file_path).is_ok() {
                   let target_code = fs::read_to_string(&target_file_path).unwrap();
@@ -56,7 +67,7 @@ impl GlslPreprocessor {
                   out.push_str("\n// end include\n");
 
                   past_includes.push(following_text);
-                  println!("handled include {} for {:?}", following_text, target_file_path)
+                  // println!("handled include {} for {:?}", following_text, target_file_path)
 
                } else {
                   panic!("could not find target include, {:?}", target_file_path);

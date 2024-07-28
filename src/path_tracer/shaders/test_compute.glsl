@@ -49,7 +49,7 @@ vec3 path_trace(Ray ray) {
 
     if (test.d > FP) { return vec3(0.0); }
 
-    return calc_normal(calc_point(ray, test.d));
+    return calc_normal(calc_point(ray, test.d)) + 0.5;
 }
 
 

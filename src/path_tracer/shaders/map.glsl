@@ -1,10 +1,15 @@
-Hit map(vec3 p) {
+Hit map(vec3 pos) {
     Hit back;
     Hit[2] shapes;
+    vec3 tr;
 
-    shapes[0] = Hit(sdSphere(p - vec3(-1.0, 0.0, 0.0), 1.0));
+    tr = pos;
+    tr = move(tr, vec3(-1.0, 0.0, 0.0));
+    shapes[0] = Hit(
+        sdSphere(tr, 1.0)
+    );
 
-    shapes[1] = Hit(sdSphere(p - vec3(1.0, 0.0, 0.0), 1.0));
+    shapes[1] = Hit(sdSphere(pos - vec3(1.0, 0.0, 0.0), 1.0));
 
 
     back = Hit(10000.0);
@@ -14,3 +19,5 @@ Hit map(vec3 p) {
 
     return back;
 }
+
+// unused due to overide

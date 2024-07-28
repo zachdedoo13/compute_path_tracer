@@ -18,11 +18,11 @@ pub struct PathTracer {
    pub constants: UniformPackageSingles<Constants>
 }
 impl PathTracer {
-   pub fn new(setup: &Setup, storage_texture_package: &StorageTexturePackage) -> Self {
+   pub fn new(setup: &Setup, storage_texture_package: &StorageTexturePackage, map: String) -> Self {
 
       let constants = UniformPackageSingles::create(&setup, ShaderStages::COMPUTE, Constants::default());
 
-      let shader = Self::load_shader(setup);
+      let shader = Self::load_shader(setup, map);
 
       let compute_pipeline_layout = setup.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
          label: Some("compute Pipeline Layout"),
@@ -45,8 +45,8 @@ impl PathTracer {
       }
    }
 
-   pub fn remake_pipeline(&mut self, setup: &Setup, storage_texture_package: &StorageTexturePackage) {
-      let shader = Self::load_shader(setup);
+   pub fn remake_pipeline(&mut self, setup: &Setup, storage_texture_package: &StorageTexturePackage, map: String) {
+      let shader = Self::load_shader(setup, map);
 
       let compute_pipeline_layout = setup.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
          label: Some("compute Pipeline Layout"),
@@ -65,11 +65,11 @@ impl PathTracer {
       });
    }
 
-   pub fn load_shader(setup: &Setup) -> ShaderModule {
+   pub fn load_shader(setup: &Setup, map: String) -> ShaderModule {
       let main_path = Box::from(Path::new("src/path_tracer/shaders/test_compute.glsl"));
       let out_path = Box::from(Path::new("src/path_tracer/shader_output/shader_output.glsl"));
 
-      GlslPreprocessor::do_the_thing(&main_path, &out_path);
+      GlslPreprocessor::do_the_thing(&main_path, &out_path, vec![("map.glsl".to_string(), map)]);
 
       let source = fs::read_to_string("src/path_tracer/shader_output/shader_output.glsl").unwrap();
 

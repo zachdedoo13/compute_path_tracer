@@ -1,6 +1,7 @@
-use std::f32::consts::PI;
+use egui::Label;
 use std::iter;
-use cgmath::Vector3;
+use bytemuck::Zeroable;
+use cgmath::{Vector3, Zero};
 use egui::{Align2, Context, Frame, Pos2, Rect, Sense, Style, Ui, Vec2};
 use egui_wgpu::ScreenDescriptor;
 use wgpu::{CommandEncoder, TextureView, TextureViewDescriptor};
@@ -40,6 +41,8 @@ impl<'a> State<'a> {
       let egui = EguiRenderer::new(&setup.device, setup.config.format, None, 1, setup.window);
 
 
+      let mut node_editor = NodeEditor::new();
+
       // packages
       let time_package = TimePackage::new();
       let input_manager = InputManager::new();
@@ -48,9 +51,9 @@ impl<'a> State<'a> {
       let render_texture = StorageTexturePackage::new(&setup, (10.0, 10.0));
       let render_texture_pipeline = RenderTexturePipeline::new(&setup, &render_texture);
 
-      let path_tracer = PathTracer::new(&setup, &render_texture);
+      let path_tracer = PathTracer::new(&setup, &render_texture, node_editor.generate_map());
 
-      let node_editor = NodeEditor::new();
+
 
       Self {
          setup,
@@ -108,9 +111,9 @@ impl<'a> State<'a> {
                egui::CollapsingHeader::new("Performance")
                    .default_open(true)
                    .show(ui, |ui| {
-                      ui.add(egui::Label::new(format!("FPS: {}", &self.time_package.fps)));
+                      ui.add(Label::new(format!("FPS: {}", &self.time_package.fps)));
 
-                      ui.add(egui::Label::new(
+                      ui.add(Label::new(
                          format!("Screen: {} x {} = {}",
                                  &self.setup.size.width
                                  , &self.setup.size.height,
@@ -118,7 +121,7 @@ impl<'a> State<'a> {
                          )
                       ));
 
-                      ui.add(egui::Label::new(
+                      ui.add(Label::new(
                          format!("Texture: {} x {} = {}",
                                  &self.render_texture.size.width
                                  , &self.render_texture.size.height,
@@ -145,7 +148,7 @@ impl<'a> State<'a> {
              .frame(Frame::window(&Style::default()))
              .show(&ui, code);
 
-         self.node_editor.ui(ui)
+         self.node_editor.ui(ui, &mut self.path_tracer, &self.render_texture, &self.setup, &mut self.resized);
       };
 
       self.egui.draw(
@@ -182,6 +185,11 @@ impl<'a> State<'a> {
 }
 
 
+
+
+
+// todo make a editor package
+
 struct NodeEditor {
    max_size: Vec2,
    nodes: Vec<Node>,
@@ -200,7 +208,7 @@ impl NodeEditor {
       }
    }
 
-   pub fn ui(&mut self, ui: &Context) {
+   pub fn ui<'a>(&mut self, ui: &Context, path_tracer: &mut PathTracer, storage_texture_package: &StorageTexturePackage, setup: &Setup, resized: &'a mut bool) {
       let mut changed = false;
 
       egui::Window::new("Map editor")
@@ -211,7 +219,8 @@ impl NodeEditor {
           .frame(Frame::window(&Style::default()))
           .show(&ui, |ui| {
              if ui.button("add").clicked() {
-                self.nodes.push(Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), format!("num={}", self.nodes.len())))
+                self.nodes.push(Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), format!("num={}", self.nodes.len())));
+                changed = true;
              }
 
              ui.allocate_space(ui.available_size());
@@ -223,18 +232,85 @@ impl NodeEditor {
                    kill = Some(i)
                 }
 
+                // todo: detects movement as a change
                 if *node != original_node {
                    changed = true
                 }
 
              }
-             if let Some(index) = kill { self.nodes.remove(index); }
+             if let Some(index) = kill { self.nodes.remove(index); changed = true; }
           });
 
       if changed {
-         println!("changed")
+         path_tracer.remake_pipeline(setup, storage_texture_package, self.generate_map());
+         *resized = true;
+      }
+   }
+
+   fn generate_map(&mut self) -> String {
+      let mut map = String::new();
+
+      if self.nodes.len() == 0 {
+         return r#"
+            Hit map(vec3 pos) {{ return Hit(10000.0); }}
+         "#.to_string()
       }
 
+      map.push_str("Hit map(vec3 pos) { \n");
+      map.push_str(format!("Hit[{}] shapes;\n", self.nodes.len()).as_str());
+      map.push_str("vec3 tr;\n");
+
+      for (i, node) in self.nodes.iter().enumerate() {
+         map.push_str(node.map(i).as_str())
+      }
+
+      map.push_str(format!(r#"
+      Hit back = Hit(10000.0);
+      for (int i = 0; i < {}; i ++) {{
+         back = opUnion(back, shapes[i]);
+      }}
+
+      return back;
+   }}
+
+      "#, self.nodes.len(), ).as_str());
+
+      map
+   }
+
+   fn save_scene(&mut self) {} // todo
+
+   fn load_scenes(&mut self) {} // todo
+
+}
+
+
+#[derive(Debug, PartialEq, Clone)]
+enum Shapes {
+   Sphere,
+   Cube,
+}
+impl Shapes {
+   fn show_enum_dropdown(ui: &mut Ui, selected: &mut Shapes) {
+      egui::ComboBox::from_label("")
+          .selected_text(format!("{:?}", selected))
+          .show_ui(ui, |ui| {
+             ui.selectable_value(selected, Shapes::Sphere, "Sphere");
+             ui.selectable_value(selected, Shapes::Cube, "Cube");
+          });
+   }
+
+   fn size_options(&self, ui: &mut Ui, size: &mut Vector3<f32>) {
+      match self {
+         Shapes::Sphere => {
+            ui.add(egui::DragValue::new(&mut size.x).speed(0.01).clamp_range(0.01..=100.0).prefix("Size: "));
+         }
+         Shapes::Cube => {
+            ui.add(egui::DragValue::new(&mut size.x).speed(0.01).clamp_range(0.01..=100.0).prefix("L: "));
+            ui.add(egui::DragValue::new(&mut size.y).speed(0.01).clamp_range(0.01..=100.0).prefix("W: "));
+            ui.add(egui::DragValue::new(&mut size.z).speed(0.01).clamp_range(0.01..=100.0).prefix("H: "));
+         }
+      }
    }
 }
 
@@ -243,9 +319,12 @@ impl NodeEditor {
 #[derive(PartialEq)]
 struct Node {
    screen_position: Pos2,
-   size: Vec2,
+   screen_size: Vec2,
    title: String,
 
+   shape: Shapes,
+   scale: f32,
+   size: Vector3<f32>,
    position: Vector3<f32>,
    rotation: Vector3<f32>,
 }
@@ -253,11 +332,10 @@ impl Node {
    fn new(screen_position: Pos2, size: Vec2, title: String) -> Self {
       Self {
          screen_position,
-         size,
+         screen_size: size,
          title,
 
-         position: Vector3::new(0.0, 0.0, 0.0),
-         rotation: Vector3::new(0.0, 0.0, 0.0),
+         ..Default::default()
       }
    }
 
@@ -271,9 +349,26 @@ impl Node {
                    *back = true;
                 }
 
+                if ui.button("reset").clicked() {
+                   let title = self.title.clone();
+                   *self = Self {screen_position: self.screen_position, screen_size: self.screen_size, title, ..Self::default() };
+                }
+
+                Shapes::show_enum_dropdown(ui, &mut self.shape);
+
+                egui::CollapsingHeader::new("size")
+                    .default_open(false)
+                    .show(ui, |ui| {
+                       if ui.button("reset").clicked() { self.scale = Self::default().scale; self.size = Self::default().size }
+                       ui.add(egui::DragValue::new(&mut self.scale).speed(0.001).clamp_range(0.001..=100.0).prefix("Scale: "));
+                       self.shape.size_options(ui, &mut self.size);
+                    });
+
                 egui::CollapsingHeader::new("position")
                     .default_open(false)
                     .show(ui, |ui| {
+                       if ui.button("reset").clicked() { self.position = Self::default().position; }
+
                        ui.add(egui::DragValue::new(&mut self.position.x).speed(0.01).clamp_range(-100.0..=100.0).prefix("X: "));
                        ui.add(egui::DragValue::new(&mut self.position.y).speed(0.01).clamp_range(-100.0..=100.0).prefix("Y: "));
                        ui.add(egui::DragValue::new(&mut self.position.z).speed(0.01).clamp_range(-100.0..=100.0).prefix("Z: "));
@@ -282,9 +377,11 @@ impl Node {
                 egui::CollapsingHeader::new("rotation")
                     .default_open(false)
                     .show(ui, |ui| {
-                       ui.add(egui::DragValue::new(&mut self.rotation.x).speed(0.01).clamp_range(-PI..=PI).prefix("X: "));
-                       ui.add(egui::DragValue::new(&mut self.rotation.y).speed(0.01).clamp_range(-PI..=PI).prefix("Y: "));
-                       ui.add(egui::DragValue::new(&mut self.rotation.z).speed(0.01).clamp_range(-PI..=PI).prefix("Z: "));
+                       if ui.button("reset").clicked() { self.rotation = Self::default().rotation; }
+
+                       ui.add(egui::DragValue::new(&mut self.rotation.x).speed(0.01).clamp_range(-1000.0..=1000.0).prefix("X: "));
+                       ui.add(egui::DragValue::new(&mut self.rotation.y).speed(0.01).clamp_range(-1000.0..=1000.0).prefix("Y: "));
+                       ui.add(egui::DragValue::new(&mut self.rotation.z).speed(0.01).clamp_range(-1000.0..=1000.0).prefix("Z: "));
                     });
 
              });
@@ -294,7 +391,7 @@ impl Node {
    }
 
    fn draw(&mut self, ui: &mut Ui, window_pos: Pos2, max_size: Vec2) -> bool {
-      let rect = Rect::from_min_size(window_pos + self.screen_position.to_vec2(), self.size);
+      let rect = Rect::from_min_size(window_pos + self.screen_position.to_vec2(), self.screen_size);
       let response = ui.allocate_rect(rect, Sense::click_and_drag());
 
       if response.dragged() {
@@ -314,5 +411,51 @@ impl Node {
       });
 
       back
+   }
+
+   fn map(&self, index: usize) -> String {
+      let mut back = String::new();
+
+      let shape_option = match self.shape {
+         Shapes::Sphere => {"sdSphere"}
+         Shapes::Cube => {"sdCube"}
+      };
+
+      let size_option = match self.shape {
+         Shapes::Sphere => {format!("{}", self.size.x)}
+         Shapes::Cube => {format!("vec3({}, {}, {})", self.size.x, self.size.y, self.size.z)}
+      };
+
+      let p = self.position;
+      let r = self.rotation;
+
+      let pos = if self.position != Vector3::zero() { format!("tr = move(tr, vec3({}, {}, {}));", p.x, p.y, p.z) } else {"//pos".to_string()};
+      let rot = if self.rotation != Vector3::zero() { format!("tr = rot3D(tr, vec3({}, {}, {}));",  r.x, r.y, r.z) } else {"//rot".to_string()};
+      back.push_str(format!(r#"
+      tr = pos;
+      {pos}
+      {rot}
+      shapes[{}] = Hit(
+         {}(tr * {}, {}) / {}
+      );
+      "#,  index, shape_option, 1.0 / self.scale, size_option, 1.0 / self.scale).as_str());
+
+      back
+   }
+}
+
+impl Default for Node {
+   fn default() -> Self {
+      Self {
+         screen_position: Pos2::zeroed(),
+         screen_size: Vec2::zeroed(),
+         title: "default".to_string(),
+
+         shape: Shapes::Sphere,
+         scale: 1.0,
+         size: Vector3::new(1.0, 1.0, 1.0),
+         position: Vector3::new(0.0, 0.0, 0.0),
+         rotation: Vector3::new(0.0, 0.0, 0.0),
+      }
    }
 }
