@@ -11,10 +11,6 @@ layout(set = 1, binding = 0) uniform Constants {
     int last_clear;
 } c;
 
-#define O1 sin(c.time)
-#define AO1 abs(sin(c.time))
-#define SAO1 smoothstep(0.0, 3.0, abs(sin(c.time)))
-
 
 #define MHD 0.001
 #define FP 100.0
@@ -91,31 +87,51 @@ Hit opUnion(Hit v1, Hit v2) {
 // end include
 // included override "assets/shaders/path_tracer\\map.glsl"
 Hit map(vec3 pos) { 
-Hit[2] shapes;
+Hit[4] shapes;
 vec3 tr;
 
       tr = pos;
-      //pos
-      //rot
+      tr = move(tr, vec3(-1.96, 0.35, 0.41));
+      tr = rot3D(tr, vec3(0.88, 0.81, 0));
       shapes[0] = Hit(
-         sdSphere(tr * 1, 1) / 1,
+         sdCube(tr * 1, vec3(1, 1, 1)) / 1,
+         
+      Mat(vec3(0.90588236, 0.18039216, 0.18039216))
+      
+      );
+      
+      tr = pos;
+      tr = move(tr, vec3(2.02, 1.22, 0));
+      tr = rot3D(tr, vec3(0, 0.91, 0.55));
+      shapes[1] = Hit(
+         sdCube(tr * 1.6155088, vec3(1, 1, 1)) / 1.6155088,
          
       Mat(vec3(1, 1, 1))
       
       );
       
       tr = pos;
-      //pos
-      //rot
-      shapes[1] = Hit(
-         sdSphere(tr * 1, 1) / 1,
+      tr = move(tr, vec3(-0.37, 4.98, 5.24));
+      tr = rot3D(tr, vec3(2.42, 2.35, 0));
+      shapes[2] = Hit(
+         sdCube(tr * 1, vec3(1, 1, 1)) / 1,
          
-      Mat(vec3(1, 1, 1))
+      Mat(vec3(0.90588236, 0.18039216, 0.18039216))
+      
+      );
+      
+      tr = pos;
+      tr = move(tr, vec3(3.2, 2.01, 10.88));
+      tr = rot3D(tr, vec3(6.77, 4.11, 2.85));
+      shapes[3] = Hit(
+         sdCube(tr * 2, vec3(1, 1, 1)) / 2,
+         
+      Mat(vec3(0.90588236, 0.18039216, 0.18039216))
       
       );
       
       Hit back = Hit(10000.0, MDEF);
-      for (int i = 0; i < 2; i ++) {
+      for (int i = 0; i < 4; i ++) {
          back = opUnion(back, shapes[i]);
       }
 

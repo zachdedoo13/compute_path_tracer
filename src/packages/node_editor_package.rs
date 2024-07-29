@@ -18,8 +18,7 @@ pub struct NodeEditor {
 impl NodeEditor {
    pub fn new() -> Self {
       let nodes = vec![
-         Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), "Node 1".to_string()),
-         Node::new(Pos2::new(200.0, 50.0), Vec2::new(100.0, 50.0), "Node 2".to_string()),
+         Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), "1".to_string()),
       ];
 
       Self {
@@ -40,62 +39,74 @@ impl NodeEditor {
           .max_size(self.max_size)
           .frame(Frame::window(&Style::default()))
           .show(&ui, |ui| {
-             if ui.button("add").clicked() {
-                self.nodes.push(Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), format!("num={}", self.nodes.len())));
-                changed = true;
-             }
 
-             ui.add(egui::TextEdit::singleline(&mut self.save_name)
-                 .desired_width(75.0)
-             );
-
-             if ui.button("save").clicked() {
-                let serialised = to_string(&self.nodes).unwrap();
-                let name = &self.save_name;
-
-                fs::write(&Path::new(format!("assets/maps/{name}.json").as_str()), serialised).unwrap();
-             }
-
-             if ui.button("load").clicked() {
-                let name = &self.save_name;
-                let data  = fs::read_to_string(&Path::new(format!("assets/maps/{name}.json").as_str()));
-
-                if let Ok(unwrapped_data) = data {
-                   self.nodes = from_str(&unwrapped_data).unwrap();
+             ui.horizontal(|ui| {
+                if ui.button("add").clicked() {
+                   self.nodes.push(Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), format!("{}", self.nodes.len() + 1)));
                    changed = true;
-                } else {
-                   self.save_name = "!!not found".to_string();
                 }
-             }
 
-             if ui.button("Files").contains_pointer() {
-                let entries = fs::read_dir("assets/maps/").unwrap();
+                ui.add(egui::TextEdit::singleline(&mut self.save_name)
+                    .desired_width(75.0)
+                );
 
-                let mut c = 0;
+                if ui.button("save").clicked() {
+                   let serialised = to_string(&self.nodes).unwrap();
+                   let name = &self.save_name;
 
-                for entry in entries {
-                   let entry = entry.unwrap();
-                   let path = entry.path();
-                   if path.is_file() {
-                      c += 1;
-                      let name = path.file_name().unwrap();
-                      let string_name = name.to_str().unwrap().to_string().replace(".json", "");
-                      ui.add(Label::new(
-                         string_name
-                      ));
+                   fs::write(&Path::new(format!("assets/maps/{name}.json").as_str()), serialised).unwrap();
+                }
+
+                if ui.button("load").clicked() {
+                   let name = &self.save_name;
+                   let data = fs::read_to_string(&Path::new(format!("assets/maps/{name}.json").as_str()));
+
+                   if let Ok(unwrapped_data) = data {
+                      self.nodes = from_str(&unwrapped_data).unwrap();
+                      changed = true;
+                   } else {
+                      self.save_name = "!!not found".to_string();
                    }
                 }
 
-                if c == 0 { ui.add(Label::new("None found")); }
-             }
+                if ui.button("Files").contains_pointer() {
+                   let entries = fs::read_dir("assets/maps/").unwrap();
+
+                   let mut c = 0;
+                   let mut all_entries = vec![];
+                   for entry in entries {
+                      let entry = entry.unwrap();
+                      let path = entry.path();
+                      if path.is_file() {
+                         c += 1;
+                         let name = path.file_name().unwrap();
+                         let string_name = name.to_str().unwrap().to_string().replace(".json", "");
+                         all_entries.push(string_name);
+                      }
+                   }
+
+                   if c == 0 { ui.add(Label::new("None found")); } else {
+                      let mut end = String::new();
+                      for (i, e) in all_entries.iter().enumerate() {
+                         end.push_str(e.as_str());
+                         if i % 2 == 0 { end.push_str("\n") } else { end.push_str("  "); }
+                      }
+                      ui.add(Label::new(end));
+                   }
+                }
+             });
 
              ui.allocate_space(ui.available_size());
 
              let mut kill = None;
+             let mut add = None;
+             let len = self.nodes.len();
              for (i, node) in self.nodes.iter_mut().enumerate() {
                 let original_node = node.clone();
-                if node.draw(ui, ui.min_rect().min, self.max_size) {
-                   kill = Some(i)
+                match node.draw(ui, ui.min_rect().min, self.max_size) {
+                   1 => { kill = Some(i) }
+                   2 => { let mut d = original_node.clone(); d.title = format!("{}", len + 1); add = Some(d); }
+                   _ => {}
                 }
 
                 // todo: detects movement as a change
@@ -105,6 +116,7 @@ impl NodeEditor {
 
              }
              if let Some(index) = kill { self.nodes.remove(index); changed = true; }
+             if let Some(node) = add { self.nodes.push(node); changed = true; }
           });
 
       if changed {
@@ -118,7 +130,7 @@ impl NodeEditor {
 
       if self.nodes.len() == 0 {
          return r#"
-            Hit map(vec3 pos) {{ return Hit(10000.0); }}
+            Hit map(vec3 pos) {{ return Hit(10000.0, MDEF); }}
          "#.to_string()
       }
 
@@ -208,14 +220,18 @@ impl Node {
       }
    }
 
-   pub fn contents<'a>(&'a mut self, back: &'a mut bool) -> impl FnMut(&mut Ui) + '_ {
+   pub fn contents<'a>(&'a mut self, back: &'a mut i32) -> impl FnMut(&mut Ui) + '_ {
       let contents = |ui: &mut Ui| {
          egui::CollapsingHeader::new(&self.title)
              .default_open(true)
              .show(ui, |ui| {
 
                 if ui.button("remove").clicked() {
-                   *back = true;
+                   *back = 1;
+                }
+
+                if ui.button("duplicate").clicked() {
+                   *back = 2;
                 }
 
                 if ui.button("reset").clicked() {
@@ -261,7 +277,7 @@ impl Node {
       contents
    }
 
-   pub fn draw(&mut self, ui: &mut Ui, window_pos: Pos2, max_size: Vec2) -> bool {
+   pub fn draw(&mut self, ui: &mut Ui, window_pos: Pos2, max_size: Vec2) -> i32 {
       let rect = Rect::from_min_size(window_pos + Vec2::from(self.screen_position), Vec2::from(self.screen_size));
       let response = ui.allocate_rect(rect, Sense::click_and_drag());
 
@@ -269,14 +285,14 @@ impl Node {
          self.screen_position.0 += response.drag_delta().x;
          self.screen_position.1 += response.drag_delta().y;
 
-         if self.screen_position.0 < 75.0 {self.screen_position.0 = 75.0}
-         if self.screen_position.1 < 0.0 {self.screen_position.1 = 0.0}
+         if self.screen_position.0 < 0.0 {self.screen_position.0 = 0.0}
+         if self.screen_position.1 < 25.0 {self.screen_position.1 = 25.0}
 
          if self.screen_position.0 > max_size.x {self.screen_position.0 = max_size.x}
          if self.screen_position.1 > max_size.y {self.screen_position.1 = max_size.y}
       }
 
-      let mut back = false;
+      let mut back = 0;
 
       ui.allocate_ui_at_rect(rect, |ui| {
          ui.group(self.contents(&mut back));
@@ -357,7 +373,10 @@ impl Material {
                 (self.color.2 * 255.0) as u8,
              );
 
-             ui.color_edit_button_srgba(&mut color);
+             ui.horizontal(|ui| {
+                ui.label("Color ");
+                ui.color_edit_button_srgba(&mut color);
+             });
 
              self.color = (
                 color.r() as f32 / 255.0,

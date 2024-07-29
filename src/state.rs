@@ -20,6 +20,7 @@ pub struct State<'a> {
    pub egui: EguiRenderer,
 
    pub resized: bool,
+   pub editor_open: bool,
 
    // packages
    time_package: TimePackage,
@@ -58,6 +59,7 @@ impl<'a> State<'a> {
          setup,
          egui,
          resized: false,
+         editor_open: false,
 
          time_package,
          input_manager,
@@ -134,10 +136,22 @@ impl<'a> State<'a> {
 
             // add other ui hear
             self.path_tracer.gui(ui);
+
+            {
+               egui::CollapsingHeader::new("Other")
+                   .default_open(true)
+                   .show(ui, |ui| {
+                      if ui.add(egui::Button::new("Map Editor")).clicked() {
+                         self.editor_open = !self.editor_open;
+                      }
+                      ui.end_row();
+                   });
+            }
+
          };
 
          // Pre draw setup
-         egui::Window::new("template thinggy")
+         egui::Window::new("Path Tracer")
              .default_open(true)
              .max_width(1000.0)
              .max_height(800.0)
@@ -147,7 +161,9 @@ impl<'a> State<'a> {
              .frame(Frame::window(&Style::default()))
              .show(&ui, code);
 
-         self.node_editor.ui(ui, &mut self.path_tracer, &self.render_texture, &self.setup, &mut self.resized);
+         if self.editor_open {
+            self.node_editor.ui(ui, &mut self.path_tracer, &self.render_texture, &self.setup, &mut self.resized);
+         }
       };
 
       self.egui.draw(

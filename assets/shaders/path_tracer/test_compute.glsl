@@ -11,10 +11,6 @@ layout(set = 1, binding = 0) uniform Constants {
     int last_clear;
 } c;
 
-#define O1 sin(c.time)
-#define AO1 abs(sin(c.time))
-#define SAO1 smoothstep(0.0, 3.0, abs(sin(c.time)))
-
 
 #define MHD 0.001
 #define FP 100.0
