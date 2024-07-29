@@ -90,7 +90,6 @@ impl PathTracer {
       if resized {
          let size = Vector2::new(setup.size.width as f32, setup.size.height as f32);
          storage_texture_package.remake(setup, size.into());
-         println!("remade texture");
 
          constants.data.last_clear = 0;
       }

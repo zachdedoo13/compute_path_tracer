@@ -6,6 +6,13 @@ vec2 calc_uv(ivec2 gl_uv, ivec2 dimentions) {
     return uv;
 }
 
+bool bounds_check(ivec2 gl_uv, ivec2 dimentions) {
+    if (gl_uv.x > dimentions.x || gl_uv.y > dimentions.y) {
+        return true;
+    }
+    return false;
+}
+
 vec3 calc_point(Ray ray, float dist) {
     return ray.ro + ray.rd * dist;
 }

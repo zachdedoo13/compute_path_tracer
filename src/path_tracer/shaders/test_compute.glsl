@@ -17,7 +17,7 @@ layout(set = 1, binding = 0) uniform Constants {
 
 
 #define MHD 0.001
-#define FP 5.0
+#define FP 100.0
 
 //!code start flag
 
@@ -56,7 +56,10 @@ vec3 path_trace(Ray ray) {
 void main() {
     ivec2 gl_uv = ivec2(gl_GlobalInvocationID.xy);
     ivec2 dimentions = imageSize(the_texture);
+    if (bounds_check(gl_uv, dimentions)) { return; }
     vec2 uv = calc_uv(gl_uv, dimentions);
+
+
 
 
 
