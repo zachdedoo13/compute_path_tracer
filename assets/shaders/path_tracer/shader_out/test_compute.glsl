@@ -91,21 +91,31 @@ Hit opUnion(Hit v1, Hit v2) {
 // end include
 // included override "assets/shaders/path_tracer\\map.glsl"
 Hit map(vec3 pos) { 
-Hit[1] shapes;
+Hit[2] shapes;
 vec3 tr;
 
       tr = pos;
       //pos
-      tr = rot3D(tr, vec3(0.62, 0.47, 0));
+      //rot
       shapes[0] = Hit(
-         sdCube(tr * 1, vec3(1, 1, 1)) / 1,
+         sdSphere(tr * 1, 1) / 1,
          
-      Mat(vec3(0.17254902, 0, 1))
+      Mat(vec3(1, 1, 1))
+      
+      );
+      
+      tr = pos;
+      //pos
+      //rot
+      shapes[1] = Hit(
+         sdSphere(tr * 1, 1) / 1,
+         
+      Mat(vec3(1, 1, 1))
       
       );
       
       Hit back = Hit(10000.0, MDEF);
-      for (int i = 0; i < 1; i ++) {
+      for (int i = 0; i < 2; i ++) {
          back = opUnion(back, shapes[i]);
       }
 

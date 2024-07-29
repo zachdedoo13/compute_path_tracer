@@ -1,1 +1,2 @@
 /target
+/assets/shaders/path_tracer/shader_out/test_compute.glsl
