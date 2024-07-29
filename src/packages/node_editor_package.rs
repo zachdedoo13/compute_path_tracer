@@ -201,6 +201,8 @@ pub struct Node {
    screen_size: (f32, f32),
    title: String,
 
+   open: bool,
+
    shape: Shapes,
    scale: f32,
    size: (f32, f32, f32),
@@ -222,8 +224,12 @@ impl Node {
 
    pub fn contents<'a>(&'a mut self, back: &'a mut i32) -> impl FnMut(&mut Ui) + '_ {
       let contents = |ui: &mut Ui| {
-         egui::CollapsingHeader::new(&self.title)
-             .default_open(true)
+         let mut tit = self.title.clone();
+         if tit.len() < 20 {
+            for _ in 0..(20 - tit.len()) { tit.push(' ') }
+         }
+         egui::CollapsingHeader::new(&tit)
+             .open(Some(self.open))
              .show(ui, |ui| {
 
                 if ui.button("remove").clicked() {
@@ -238,6 +244,8 @@ impl Node {
                    let title = self.title.clone();
                    *self = Self {screen_position: self.screen_position, screen_size: self.screen_size, title, ..Self::default() };
                 }
+
+                ui.add(egui::TextEdit::singleline(&mut self.title));
 
                 Shapes::show_enum_dropdown(ui, &mut self.shape);
 
@@ -277,9 +285,17 @@ impl Node {
       contents
    }
 
+   const SCREEN_SIZE: (f32, f32) = (50.0, 25.0);
    pub fn draw(&mut self, ui: &mut Ui, window_pos: Pos2, max_size: Vec2) -> i32 {
-      let rect = Rect::from_min_size(window_pos + Vec2::from(self.screen_position), Vec2::from(self.screen_size));
-      let response = ui.allocate_rect(rect, Sense::click_and_drag());
+      let rect = Rect::from_min_size(window_pos + Vec2::from(self.screen_position), Vec2::from(Self::SCREEN_SIZE));
+
+      let mut back = 0;
+
+      ui.allocate_ui_at_rect(rect, |ui| {
+         ui.group(self.contents(&mut back));
+      });
+
+      let response = ui.allocate_rect(rect, Sense::click_and_drag() | Sense::click());
 
       if response.dragged() {
          self.screen_position.0 += response.drag_delta().x;
@@ -292,11 +308,9 @@ impl Node {
          if self.screen_position.1 > max_size.y {self.screen_position.1 = max_size.y}
       }
 
-      let mut back = 0;
-
-      ui.allocate_ui_at_rect(rect, |ui| {
-         ui.group(self.contents(&mut back));
-      });
+      if response.clicked() {
+         self.open = !self.open;
+      }
 
       back
    }
@@ -342,6 +356,8 @@ impl Default for Node {
          screen_size: (0.0, 0.0),
          title: "default".to_string(),
 
+         open: false,
+
          shape: Shapes::Sphere,
          scale: 1.0,
          size: Vector3::new(1.0, 1.0, 1.0).into(),
@@ -357,6 +373,14 @@ impl Default for Node {
 #[derive(Clone, PartialEq, Serialize, Deserialize)]
 pub struct Material {
    color: (f32, f32, f32),
+   light: (f32, f32, f32),
+
+   // only in rust
+   light_strength: f32,
+
+   spec: f32,
+   spec_col: (f32, f32, f32),
+   roughness: f32,
 }
 impl Material {
    pub fn ui(&mut self, big_ui: &mut Ui) {
@@ -365,33 +389,44 @@ impl Material {
           .show(big_ui, |ui| {
              if ui.button("reset").clicked() { *self = Self::default() }
 
+             let spacing = 10.0;
 
              // color
-             let mut color = Color32::from_rgb(
-                (self.color.0 * 255.0) as u8,
-                (self.color.1 * 255.0) as u8,
-                (self.color.2 * 255.0) as u8,
-             );
+             display_color(&mut self.color, "Color ", ui);
 
-             ui.horizontal(|ui| {
-                ui.label("Color ");
-                ui.color_edit_button_srgba(&mut color);
-             });
+             ui.add_space(spacing);
+             // light
+             display_color(&mut self.light, "Light ", ui);
+             ui.add(egui::DragValue::new(&mut self.light_strength).speed(0.01).clamp_range(0.0..=100.0).prefix("Light strength: "));
 
-             self.color = (
-                color.r() as f32 / 255.0,
-                color.g() as f32 / 255.0,
-                color.b() as f32 / 255.0,
-             )
+             ui.add_space(spacing);
+
+             // spec
+             ui.add(egui::DragValue::new(&mut self.spec).speed(0.001).clamp_range(0.0..=1.0).prefix("Spec %: "));
+             display_color(&mut self.spec_col, "Spec col  ", ui);
+
+             ui.add_space(spacing);
+
+             // rough
+             ui.add(egui::DragValue::new(&mut self.roughness).speed(0.001).clamp_range(0.0..=5.0).prefix("Roughness: "));
 
           });
    }
 
    pub fn mat(&self) -> String {
-      let c = self.color;
+      let color = format!("vec3({}, {}, {})", self.color.0, self.color.1, self.color.2);
+
+      let f = self.light_strength;
+      let light = format!("vec3({}, {}, {})", self.light.0 * f, self.light.1 * f, self.light.2 * f);
+
+      let spec = format!("{}", self.spec);
+      let spec_col = format!("vec3({}, {}, {})", self.spec_col.0, self.spec_col.1, self.spec_col.2);
+
+      let roughness = format!("{}", self.roughness);
+
       String::from(format!(r#"
-      Mat(vec3({}, {}, {}))
-      "#, c.0, c.1, c.2))
+         Mat({color}, {light}, {spec}, {spec_col}, {roughness})
+      "#))
    }
 }
 
@@ -399,6 +434,33 @@ impl Default for Material {
    fn default() -> Self {
       Self {
          color: (1.0, 1.0, 1.0),
+         light: (0.0, 0.0, 0.0),
+
+         light_strength: 0.0,
+
+         spec: 0.0,
+         spec_col: (0.0, 0.0, 0.0),
+         roughness: 0.0,
       }
    }
+}
+
+
+fn display_color(the: &mut (f32, f32, f32), text: &str, ui: &mut Ui) {
+   let mut in_the = Color32::from_rgb(
+      (the.0 * 255.0) as u8,
+      (the.1 * 255.0) as u8,
+      (the.2 * 255.0) as u8,
+   );
+
+   ui.horizontal(|ui| {
+      ui.label(text);
+      ui.color_edit_button_srgba(&mut in_the);
+   });
+
+   *the = (
+      in_the.r() as f32 / 255.0,
+      in_the.g() as f32 / 255.0,
+      in_the.b() as f32 / 255.0,
+   )
 }

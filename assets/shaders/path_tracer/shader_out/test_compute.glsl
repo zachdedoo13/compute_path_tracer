@@ -1,7 +1,6 @@
 #version 450
 
 layout (local_size_x = 16, local_size_y = 16, local_size_z = 1) in;
-
 layout(set = 0, binding = 0, rgba32f) uniform image2D the_texture;
 
 layout(set = 1, binding = 0) uniform Constants {
@@ -11,18 +10,40 @@ layout(set = 1, binding = 0) uniform Constants {
     int last_clear;
 } c;
 
+layout(set = 2, binding = 0) uniform Settings {
+    int debug;
+    int bounces;
+} s;
+
 
 #define MHD 0.001
 #define FP 100.0
+#define OFFSET 0.03
+
+
+const float PI = 3.14159265359;
+const float PI2 = 2.0f * PI;
+
 
 //!code start flag
 
-struct Ray {vec3 ro; vec3 rd; };
+struct Ray {vec3 ro; vec3 rd; }
+;
+struct Mat {
+    vec3 col;
+    vec3 light;
 
-struct Mat {vec3 col; };
-#define MDEF Mat(vec3(0.0))
+    float spec;
+    vec3 spec_col;
+    float roughness;
 
+//    float ior;
+//    float refrac;
+};
 struct Hit {float d; Mat mat; };
+
+
+#define MDEF Mat(vec3(0.0), vec3(0.0), 0.0, vec3(0.0), 0.0)
 
 
 // included "assets/shaders/path_tracer\\shapes.glsl"
@@ -87,51 +108,91 @@ Hit opUnion(Hit v1, Hit v2) {
 // end include
 // included override "assets/shaders/path_tracer\\map.glsl"
 Hit map(vec3 pos) { 
-Hit[4] shapes;
+Hit[8] shapes;
 vec3 tr;
 
       tr = pos;
-      tr = move(tr, vec3(-1.96, 0.35, 0.41));
-      tr = rot3D(tr, vec3(0.88, 0.81, 0));
+      tr = move(tr, vec3(0, -0.92, 0));
+      //rot
       shapes[0] = Hit(
-         sdCube(tr * 1, vec3(1, 1, 1)) / 1,
+         sdCube(tr * 1, vec3(5.36, 0.01, 4.25)) / 1,
          
-      Mat(vec3(0.90588236, 0.18039216, 0.18039216))
+         Mat(vec3(1, 1, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
       
       );
       
       tr = pos;
-      tr = move(tr, vec3(2.02, 1.22, 0));
-      tr = rot3D(tr, vec3(0, 0.91, 0.55));
+      tr = move(tr, vec3(0, 0, 2.25));
+      //rot
       shapes[1] = Hit(
-         sdCube(tr * 1.6155088, vec3(1, 1, 1)) / 1.6155088,
+         sdCube(tr * 1, vec3(4.55, 4.41, 0.47)) / 1,
          
-      Mat(vec3(1, 1, 1))
+         Mat(vec3(1, 0, 0), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
       
       );
       
       tr = pos;
-      tr = move(tr, vec3(-0.37, 4.98, 5.24));
-      tr = rot3D(tr, vec3(2.42, 2.35, 0));
+      tr = move(tr, vec3(-0.32, 0, 0));
+      tr = rot3D(tr, vec3(0.51, 0.71, 0.67));
       shapes[2] = Hit(
-         sdCube(tr * 1, vec3(1, 1, 1)) / 1,
+         sdCube(tr * 4.4444447, vec3(1, 1, 1)) / 4.4444447,
          
-      Mat(vec3(0.90588236, 0.18039216, 0.18039216))
+         Mat(vec3(0, 0, 0), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
       
       );
       
       tr = pos;
-      tr = move(tr, vec3(3.2, 2.01, 10.88));
-      tr = rot3D(tr, vec3(6.77, 4.11, 2.85));
+      tr = move(tr, vec3(2.22, 0, 2.25));
+      tr = rot3D(tr, vec3(0, 1.53, 0));
       shapes[3] = Hit(
-         sdCube(tr * 2, vec3(1, 1, 1)) / 2,
+         sdCube(tr * 1, vec3(4.55, 4.41, 0.47)) / 1,
          
-      Mat(vec3(0.90588236, 0.18039216, 0.18039216))
+         Mat(vec3(0.3137255, 1, 0), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
+      
+      );
+      
+      tr = pos;
+      tr = move(tr, vec3(-2.45, 0, 2.25));
+      tr = rot3D(tr, vec3(0, 1.53, 0));
+      shapes[4] = Hit(
+         sdCube(tr * 1, vec3(4.55, 4.41, 0.47)) / 1,
+         
+         Mat(vec3(0, 0.1882353, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
+      
+      );
+      
+      tr = pos;
+      tr = move(tr, vec3(0, 5.65, 0));
+      //rot
+      shapes[5] = Hit(
+         sdCube(tr * 1, vec3(5.36, 0.22, 4.25)) / 1,
+         
+         Mat(vec3(0, 0, 0), vec3(1.45, 1.45, 1.45), 0, vec3(0, 0, 0), 0)
+      
+      );
+      
+      tr = pos;
+      tr = move(tr, vec3(-1.3, -0.25, 0));
+      //rot
+      shapes[6] = Hit(
+         sdSphere(tr * 1, 0.4) / 1,
+         
+         Mat(vec3(0.90588236, 0.93333334, 0), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
+      
+      );
+      
+      tr = pos;
+      tr = move(tr, vec3(0.95, 0, 0));
+      tr = rot3D(tr, vec3(0.51, 0.71, 0.67));
+      shapes[7] = Hit(
+         sdCube(tr * 2.7777777, vec3(1, 1, 1)) / 2.7777777,
+         
+         Mat(vec3(1, 1, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
       
       );
       
       Hit back = Hit(10000.0, MDEF);
-      for (int i = 0; i < 4; i ++) {
+      for (int i = 0; i < 8; i ++) {
          back = opUnion(back, shapes[i]);
       }
 
@@ -177,6 +238,46 @@ vec3 calc_normal(vec3 p) {
     );
 }
 // end include
+// included "assets/shaders/path_tracer\\rng.glsl"
+uint wang_hash(inout uint seed)
+{
+    seed = uint(seed ^ uint(61)) ^ uint(seed >> uint(16));
+    seed *= uint(9);
+    seed = seed ^ (seed >> 4);
+    seed *= uint(0x27d4eb2d);
+    seed = seed ^ (seed >> 15);
+    return seed;
+}
+ 
+float RandomFloat01(inout uint state)
+{
+    return float(wang_hash(state)) / 4294967296.0;
+}
+ 
+vec3 RandomUnitVector(inout uint state)
+{
+    float z = RandomFloat01(state) * 2.0f - 1.0f;
+    float a = RandomFloat01(state) * PI2;
+    float r = sqrt(1.0f - z * z);
+    float x = r * cos(a);
+    float y = r * sin(a);
+    return vec3(x, y, z);
+}
+
+uint gen_rng(ivec2 gl_uv, int frame, ivec2 dimentions) 
+{
+    vec2 f_dim = vec2(float(dimentions.x), float(dimentions.y));
+    return uint(
+        uint(( float(gl_uv.x) * 0.5 + 0.5) *
+        float(f_dim.x)) * uint(1973) +
+        uint((float(gl_uv.y) * 0.5 + 0.5) *
+        float(f_dim.y)) * uint(9277) +
+        uint(frame) * uint(26699)
+    ) | uint(1);
+}
+// end include
+
+
 
 
 Hit CastRay(Ray ray) {
@@ -194,14 +295,71 @@ Hit CastRay(Ray ray) {
     return Hit(t, mat);
 }
 
-vec3 path_trace(Ray ray) {
+
+vec3 path_trace(Ray start_ray, uint rng) {
+    // init
+    vec3 ret = vec3(0.0);
+    vec3 throughput = vec3(1.0);
+    Ray ray = start_ray;
+
+    // path traceing loop 
+    for (int i = 0; i <= s.bounces; i++) {
+        Hit hit = CastRay(ray);
+
+        // out of bounds
+        if (hit.d > FP) {
+            ret += vec3(0.0);
+            break;
+        }
+
+        vec3 hit_pos = calc_point(ray, hit.d);
+        vec3 hit_normal = calc_normal(hit_pos);
+        ray.ro = hit_pos + hit_normal * OFFSET;
+
+        ray.rd = normalize(hit_normal + RandomUnitVector(rng));
+
+        ret += hit.mat.light * throughput;
+
+        throughput *= hit.mat.col;
+    }
+
+    return ret;
+}
+
+vec3 normals(Ray ray) {
 
     Hit test = CastRay(ray);
 
     if (test.d > FP) { return vec3(0.0); }
 
-    return calc_normal(calc_point(ray, test.d)) * test.mat.col;
-//    return test.mat.col;
+    return normalize(calc_normal(calc_point(ray, test.d))) * 0.5 + 0.5;
+}
+
+vec3 colors(Ray ray) {
+
+    Hit test = CastRay(ray);
+
+    if (test.d > FP) { return vec3(0.0); }
+
+    return test.mat.col;
+}
+
+vec3 calc_color(Ray ray, uint rng) {
+    if (s.debug == 0) {
+        return path_trace(ray, rng);
+    }
+
+    else if (s.debug == 1) {
+        return normals(ray);
+    }
+
+    else if (s.debug == 2) {
+        return colors(ray);
+    }
+
+    else {
+        return vec3(0.0);
+    }
 }
 
 
@@ -211,8 +369,7 @@ void main() {
     if (bounds_check(gl_uv, dimentions)) { return; }
     vec2 uv = calc_uv(gl_uv, dimentions);
 
-
-
+    uint rng = gen_rng(gl_uv, c.cframe, dimentions);
 
 
     Ray ray = Ray(
@@ -220,7 +377,13 @@ void main() {
         normalize(vec3(uv, 1.0)) // direction
     );
 
-    vec3 col = path_trace(ray);
+    vec3 col = calc_color(ray, rng);
+
+    if (s.debug != 0) { imageStore(the_texture, gl_uv, vec4(col, 1.0)); return; }
+
+    vec3 last_col = imageLoad(the_texture, gl_uv).rgb;
+
+    col = mix(last_col, col, 1.0 / float(c.last_clear + 1));
 
     imageStore(the_texture, gl_uv, vec4(col, 1.0));
 }

@@ -1,4 +1,5 @@
 use std::borrow::Cow;
+use std::cmp::PartialEq;
 use std::fs;
 use std::path::Path;
 use cgmath::Vector2;
@@ -6,7 +7,7 @@ use egui::Ui;
 use wgpu::{CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
 use wgpu::naga::{FastHashMap, ShaderStage};
 use winit::keyboard::KeyCode;
-use crate::defaults_only_gui;
+use crate::{defaults_and_sliders_gui, defaults_only_gui};
 use crate::inbuilt::setup::Setup;
 use crate::packages::glsl_preprocessor::GlslPreprocessor;
 use crate::packages::input_manager_package::InputManager;
@@ -15,12 +16,17 @@ use crate::utility::structs::{StorageTexturePackage, UniformPackageSingles};
 
 pub struct PathTracer {
    pub pipeline: ComputePipeline,
-   pub constants: UniformPackageSingles<Constants>
+   pub constants: UniformPackageSingles<Constants>,
+   pub settings: UniformPackageSingles<Settings>,
+
+   changed: bool,
 }
+
 impl PathTracer {
    pub fn new(setup: &Setup, storage_texture_package: &StorageTexturePackage, map: String) -> Self {
 
       let constants = UniformPackageSingles::create(&setup, ShaderStages::COMPUTE, Constants::default());
+      let settings = UniformPackageSingles::create(&setup, ShaderStages::COMPUTE, Settings::default());
 
       let shader = Self::load_shader(setup, map);
 
@@ -29,6 +35,7 @@ impl PathTracer {
          bind_group_layouts: &[
             &storage_texture_package.bind_group_layout,
             &constants.layout,
+            &settings.layout,
          ],
          push_constant_ranges: &[],
       });
@@ -42,6 +49,9 @@ impl PathTracer {
       Self {
          pipeline: compute_pipeline,
          constants,
+         settings,
+
+         changed: false,
       }
    }
 
@@ -53,6 +63,7 @@ impl PathTracer {
          bind_group_layouts: &[
             &storage_texture_package.bind_group_layout,
             &self.constants.layout,
+            &self.settings.layout,
          ],
          push_constant_ranges: &[],
       });
@@ -86,6 +97,7 @@ impl PathTracer {
 
    pub fn update(&mut self, setup: &Setup, storage_texture_package: &mut StorageTexturePackage, time_package: &TimePackage, input_manager: &InputManager, resized: bool) {
       let constants = &mut self.constants;
+      let settings = &mut self.settings;
 
       if resized {
          let size = Vector2::new(setup.size.width as f32, setup.size.height as f32);
@@ -99,16 +111,23 @@ impl PathTracer {
       constants.data.frame += 1;
       constants.data.last_clear += 1;
 
-      if input_manager.is_key_just_pressed(KeyCode::Space) {
+      if input_manager.is_key_just_pressed(KeyCode::Space) || self.changed {
          constants.data.last_clear = 0;
       }
 
 
       constants.update_with_data(&setup.queue);
+      settings.update_with_data(&setup.queue);
+
+      self.changed = false;
    }
 
    pub fn gui(&mut self, ui: &mut Ui) {
+      let sc = self.settings.data.clone();
       self.constants.data.ui(ui);
+      self.settings.data.ui(ui);
+
+      if sc != self.settings.data { self.changed = true;}
    }
 
    pub fn compute_pass(&self, encoder: &mut CommandEncoder, render_texture: &StorageTexturePackage) {
@@ -120,6 +139,7 @@ impl PathTracer {
       compute_pass.set_bind_group(0, &render_texture.bind_group, &[]);
 
       compute_pass.set_bind_group(1, &self.constants.bind_group, &[]);
+      compute_pass.set_bind_group(2, &self.settings.bind_group, &[]);
 
       let wg = 16;
       compute_pass.dispatch_workgroups(
@@ -135,4 +155,10 @@ defaults_only_gui!(
    frame: i32 = 0,
    aspect: f32 = 0.0,
    last_clear: i32 = 0
+);
+
+defaults_and_sliders_gui!(
+   Settings,
+   debug: i32 = 0 => 0..=2,
+   bounces: i32 = 8 => 0..=16
 );
