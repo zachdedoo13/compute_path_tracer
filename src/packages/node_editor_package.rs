@@ -1,7 +1,7 @@
 use std::fs;
 use std::path::Path;
 use cgmath::{Vector3, Zero};
-use egui::{Context, Frame, Label, Pos2, Rect, Sense, Style, Ui, Vec2};
+use egui::{Color32, Context, Frame, Label, Pos2, Rect, Sense, Style, Ui, Vec2};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 use crate::inbuilt::setup::Setup;
@@ -53,12 +53,12 @@ impl NodeEditor {
                 let serialised = to_string(&self.nodes).unwrap();
                 let name = &self.save_name;
 
-                fs::write(&Path::new(format!("src/packages/maps/{name}.json").as_str()), serialised).unwrap();
+                fs::write(&Path::new(format!("assets/maps/{name}.json").as_str()), serialised).unwrap();
              }
 
              if ui.button("load").clicked() {
                 let name = &self.save_name;
-                let data  = fs::read_to_string(&Path::new(format!("src/packages/maps/{name}.json").as_str()));
+                let data  = fs::read_to_string(&Path::new(format!("assets/maps/{name}.json").as_str()));
 
                 if let Ok(unwrapped_data) = data {
                    self.nodes = from_str(&unwrapped_data).unwrap();
@@ -69,20 +69,24 @@ impl NodeEditor {
              }
 
              if ui.button("Files").contains_pointer() {
-                let entries = fs::read_dir("src/packages/maps/").unwrap();
+                let entries = fs::read_dir("assets/maps/").unwrap();
+
+                let mut c = 0;
 
                 for entry in entries {
                    let entry = entry.unwrap();
                    let path = entry.path();
                    if path.is_file() {
-                      let mut name = path.file_name().unwrap();
-                      let mut string_name = name.to_str().unwrap().to_string();
-                      string_name = string_name.replace(".json", "");
+                      c += 1;
+                      let name = path.file_name().unwrap();
+                      let string_name = name.to_str().unwrap().to_string().replace(".json", "");
                       ui.add(Label::new(
                          string_name
                       ));
                    }
                 }
+
+                if c == 0 { ui.add(Label::new("None found")); }
              }
 
              ui.allocate_space(ui.available_size());
@@ -127,7 +131,7 @@ impl NodeEditor {
       }
 
       map.push_str(format!(r#"
-      Hit back = Hit(10000.0);
+      Hit back = Hit(10000.0, MDEF);
       for (int i = 0; i < {}; i ++) {{
          back = opUnion(back, shapes[i]);
       }}
@@ -190,6 +194,8 @@ pub struct Node {
    size: (f32, f32, f32),
    position: (f32, f32, f32),
    rotation: (f32, f32, f32),
+
+   material: Material,
 }
 impl Node {
    pub fn new(screen_position: Pos2, size: Vec2, title: String) -> Self {
@@ -247,6 +253,8 @@ impl Node {
                        ui.add(egui::DragValue::new(&mut self.rotation.2).speed(0.01).clamp_range(-1000.0..=1000.0).prefix("Z: "));
                     });
 
+                self.material.ui(ui);
+
              });
       };
 
@@ -261,7 +269,7 @@ impl Node {
          self.screen_position.0 += response.drag_delta().x;
          self.screen_position.1 += response.drag_delta().y;
 
-         if self.screen_position.0 < 0.0 {self.screen_position.0 = 0.0}
+         if self.screen_position.0 < 75.0 {self.screen_position.0 = 75.0}
          if self.screen_position.1 < 0.0 {self.screen_position.1 = 0.0}
 
          if self.screen_position.0 > max_size.x {self.screen_position.0 = max_size.x}
@@ -295,12 +303,15 @@ impl Node {
 
       let pos = if self.position != Vector3::zero().into() { format!("tr = move(tr, vec3({}, {}, {}));", p.0, p.1, p.2) } else {"//pos".to_string()};
       let rot = if self.rotation != Vector3::zero().into() { format!("tr = rot3D(tr, vec3({}, {}, {}));",  r.0, r.1, r.2) } else {"//rot".to_string()};
+
+      let mat = self.material.mat();
       back.push_str(format!(r#"
       tr = pos;
       {pos}
       {rot}
       shapes[{}] = Hit(
-         {}(tr * {}, {}) / {}
+         {}(tr * {}, {}) / {},
+         {mat}
       );
       "#,  index, shape_option, 1.0 / self.scale, size_option, 1.0 / self.scale).as_str());
 
@@ -320,6 +331,55 @@ impl Default for Node {
          size: Vector3::new(1.0, 1.0, 1.0).into(),
          position: Vector3::new(0.0, 0.0, 0.0).into(),
          rotation: Vector3::new(0.0, 0.0, 0.0).into(),
+
+         material: Material::default(),
+      }
+   }
+}
+
+
+#[derive(Clone, PartialEq, Serialize, Deserialize)]
+pub struct Material {
+   color: (f32, f32, f32),
+}
+impl Material {
+   pub fn ui(&mut self, big_ui: &mut Ui) {
+      egui::CollapsingHeader::new("Material")
+          .default_open(false)
+          .show(big_ui, |ui| {
+             if ui.button("reset").clicked() { *self = Self::default() }
+
+
+             // color
+             let mut color = Color32::from_rgb(
+                (self.color.0 * 255.0) as u8,
+                (self.color.1 * 255.0) as u8,
+                (self.color.2 * 255.0) as u8,
+             );
+
+             ui.color_edit_button_srgba(&mut color);
+
+             self.color = (
+                color.r() as f32 / 255.0,
+                color.g() as f32 / 255.0,
+                color.b() as f32 / 255.0,
+             )
+
+          });
+   }
+
+   pub fn mat(&self) -> String {
+      let c = self.color;
+      String::from(format!(r#"
+      Mat(vec3({}, {}, {}))
+      "#, c.0, c.1, c.2))
+   }
+}
+
+impl Default for Material {
+   fn default() -> Self {
+      Self {
+         color: (1.0, 1.0, 1.0),
       }
    }
 }

@@ -22,10 +22,14 @@ layout(set = 1, binding = 0) uniform Constants {
 //!code start flag
 
 struct Ray {vec3 ro; vec3 rd; };
-struct Hit {float d; };
+
+struct Mat {vec3 col; };
+#define MDEF Mat(vec3(0.0))
+
+struct Hit {float d; Mat mat; };
 
 
-// included "src/path_tracer/shaders\\shapes.glsl"
+// included "assets/shaders/path_tracer\\shapes.glsl"
 float sdSphere(vec3 p, float s) {
     return length(p) - s;
 }
@@ -85,41 +89,23 @@ Hit opUnion(Hit v1, Hit v2) {
     return v1.d < v2.d ? v1 : v2;
 }
 // end include
-// included override "src/path_tracer/shaders\\map.glsl"
+// included override "assets/shaders/path_tracer\\map.glsl"
 Hit map(vec3 pos) { 
-Hit[4] shapes;
+Hit[1] shapes;
 vec3 tr;
 
       tr = pos;
-      tr = move(tr, vec3(0, 1.27, 0));
-      tr = rot3D(tr, vec3(0, -0.65, 0));
-      shapes[0] = Hit(
-         sdSphere(tr * 1, 1) / 1
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(0, 1.81, 0));
-      //rot
-      shapes[1] = Hit(
-         sdSphere(tr * 1, 1) / 1
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(0, -0.62, 0));
-      //rot
-      shapes[2] = Hit(
-         sdSphere(tr * 1, 1) / 1
-      );
-      
-      tr = pos;
       //pos
-      //rot
-      shapes[3] = Hit(
-         sdSphere(tr * 1, 1) / 1
+      tr = rot3D(tr, vec3(0.62, 0.47, 0));
+      shapes[0] = Hit(
+         sdCube(tr * 1, vec3(1, 1, 1)) / 1,
+         
+      Mat(vec3(0.17254902, 0, 1))
+      
       );
       
-      Hit back = Hit(10000.0);
-      for (int i = 0; i < 4; i ++) {
+      Hit back = Hit(10000.0, MDEF);
+      for (int i = 0; i < 1; i ++) {
          back = opUnion(back, shapes[i]);
       }
 
@@ -128,7 +114,7 @@ vec3 tr;
 
       
 // end include
-// included "src/path_tracer/shaders\\funcs.glsl"
+// included "assets/shaders/path_tracer\\funcs.glsl"
 vec2 calc_uv(ivec2 gl_uv, ivec2 dimentions) {
     vec2 uv = vec2(float(gl_uv.x) / float(dimentions.x), float(gl_uv.y) / float(dimentions.y));
     uv = uv * 2.0 - 1.0;
@@ -169,15 +155,17 @@ vec3 calc_normal(vec3 p) {
 
 Hit CastRay(Ray ray) {
     float t = 0.0;
+    Mat mat;
     for (int i = 0; i < 80; i++) {
         vec3 p = ray.ro + ray.rd * t;
         Hit hit = map(p);
+        mat = hit.mat;
         t += hit.d;
 
         if (abs(hit.d) < MHD) break;
         if (t > FP) break;
     }
-    return Hit(t);
+    return Hit(t, mat);
 }
 
 vec3 path_trace(Ray ray) {
@@ -186,7 +174,8 @@ vec3 path_trace(Ray ray) {
 
     if (test.d > FP) { return vec3(0.0); }
 
-    return calc_normal(calc_point(ray, test.d)) + 0.5;
+    return calc_normal(calc_point(ray, test.d)) * test.mat.col;
+//    return test.mat.col;
 }
 
 

@@ -66,12 +66,12 @@ impl PathTracer {
    }
 
    pub fn load_shader(setup: &Setup, map: String) -> ShaderModule {
-      let main_path = Box::from(Path::new("src/path_tracer/shaders/test_compute.glsl"));
-      let out_path = Box::from(Path::new("src/path_tracer/shader_output/shader_output.glsl"));
+      let main_path = Box::from(Path::new("assets/shaders/path_tracer/test_compute.glsl"));
+      let out_path = Box::from(Path::new("assets/shaders/path_tracer/shader_out/test_compute.glsl"));
 
       GlslPreprocessor::do_the_thing(&main_path, &out_path, vec![("map.glsl".to_string(), map)]);
 
-      let source = fs::read_to_string("src/path_tracer/shader_output/shader_output.glsl").unwrap();
+      let source = fs::read_to_string(out_path).unwrap();
 
       let shader_mod = ShaderModuleDescriptor {
          label: None,

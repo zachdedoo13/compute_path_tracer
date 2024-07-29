@@ -22,7 +22,11 @@ layout(set = 1, binding = 0) uniform Constants {
 //!code start flag
 
 struct Ray {vec3 ro; vec3 rd; };
-struct Hit {float d; };
+
+struct Mat {vec3 col; };
+#define MDEF Mat(vec3(0.0))
+
+struct Hit {float d; Mat mat; };
 
 
 #include "shapes.glsl"
@@ -32,15 +36,17 @@ struct Hit {float d; };
 
 Hit CastRay(Ray ray) {
     float t = 0.0;
+    Mat mat;
     for (int i = 0; i < 80; i++) {
         vec3 p = ray.ro + ray.rd * t;
         Hit hit = map(p);
+        mat = hit.mat;
         t += hit.d;
 
         if (abs(hit.d) < MHD) break;
         if (t > FP) break;
     }
-    return Hit(t);
+    return Hit(t, mat);
 }
 
 vec3 path_trace(Ray ray) {
@@ -49,7 +55,8 @@ vec3 path_trace(Ray ray) {
 
     if (test.d > FP) { return vec3(0.0); }
 
-    return calc_normal(calc_point(ray, test.d)) + 0.5;
+    return calc_normal(calc_point(ray, test.d)) * test.mat.col;
+//    return test.mat.col;
 }
 
 
