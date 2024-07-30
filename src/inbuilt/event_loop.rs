@@ -47,6 +47,7 @@ pub async fn run() {
                      }
 
                      state.update();
+
                      match state.render() {
                         Ok(_) => {}
                         // Reconfigure the surface if it's lost or outdated

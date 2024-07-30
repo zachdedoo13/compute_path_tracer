@@ -2,9 +2,10 @@ use std::borrow::Cow;
 use std::cmp::PartialEq;
 use std::fs;
 use std::path::Path;
+use std::time::Instant;
 use cgmath::Vector2;
 use egui::Ui;
-use wgpu::{CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
+use wgpu::{CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, PipelineLayout, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
 use wgpu::naga::{FastHashMap, ShaderStage};
 use winit::keyboard::KeyCode;
 use crate::{defaults_and_sliders_gui, defaults_only_gui};
@@ -15,6 +16,7 @@ use crate::packages::time_package::TimePackage;
 use crate::utility::structs::{StorageTexturePackage, UniformPackageSingles};
 
 pub struct PathTracer {
+   pub pipeline_layout: PipelineLayout,
    pub pipeline: ComputePipeline,
    pub constants: UniformPackageSingles<Constants>,
    pub settings: UniformPackageSingles<Settings>,
@@ -47,6 +49,7 @@ impl PathTracer {
       });
 
       Self {
+         pipeline_layout: compute_pipeline_layout,
          pipeline: compute_pipeline,
          constants,
          settings,
@@ -55,32 +58,27 @@ impl PathTracer {
       }
    }
 
-   pub fn remake_pipeline(&mut self, setup: &Setup, storage_texture_package: &StorageTexturePackage, map: String) {
+   pub fn remake_pipeline(&mut self, setup: &Setup, map: String) {
+
       let shader = Self::load_shader(setup, map);
 
-      let compute_pipeline_layout = setup.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
-         label: Some("compute Pipeline Layout"),
-         bind_group_layouts: &[
-            &storage_texture_package.bind_group_layout,
-            &self.constants.layout,
-            &self.settings.layout,
-         ],
-         push_constant_ranges: &[],
-      });
+      let st = Instant::now();
 
       self.pipeline = setup.device.create_compute_pipeline(&ComputePipelineDescriptor {
          label: Some("compute path trace pipeline"),
-         layout: Some(&compute_pipeline_layout),
+         layout: Some(&self.pipeline_layout),
          module: &shader,
          entry_point: "main",
       });
+
+      println!("{:?}", st.elapsed());
    }
 
    pub fn load_shader(setup: &Setup, map: String) -> ShaderModule {
       let main_path = Box::from(Path::new("assets/shaders/path_tracer/test_compute.glsl"));
       let out_path = Box::from(Path::new("assets/shaders/path_tracer/shader_out/test_compute.glsl"));
 
-      GlslPreprocessor::do_the_thing(&main_path, &out_path, vec![("map.glsl".to_string(), map)]);
+      GlslPreprocessor::do_the_thing(&main_path, &out_path, vec![("map".to_string(), map)]);
 
       let source = fs::read_to_string(out_path).unwrap();
 
@@ -99,8 +97,8 @@ impl PathTracer {
       let constants = &mut self.constants;
       let settings = &mut self.settings;
 
-      if resized {
-         let size = Vector2::new(setup.size.width as f32, setup.size.height as f32);
+      if resized || self.changed || input_manager.is_key_just_pressed(KeyCode::Space) {
+         let size = Vector2::new(setup.size.width as f32 * settings.data.scale, setup.size.height as f32 * settings.data.scale);
          storage_texture_package.remake(setup, size.into());
 
          constants.data.last_clear = 0;
@@ -110,10 +108,6 @@ impl PathTracer {
       constants.data.aspect = setup.aspect();
       constants.data.frame += 1;
       constants.data.last_clear += 1;
-
-      if input_manager.is_key_just_pressed(KeyCode::Space) || self.changed {
-         constants.data.last_clear = 0;
-      }
 
 
       constants.update_with_data(&setup.queue);
@@ -159,6 +153,8 @@ defaults_only_gui!(
 
 defaults_and_sliders_gui!(
    Settings,
-   debug: i32 = 0 => 0..=2,
-   bounces: i32 = 8 => 0..=16
+   debug: i32 = 2 => 0..=3,
+   bounces: i32 = 8 => 0..=16,
+   scale: f32 = 1.0 => 0.1..=1.0,
+   fov: f32 = 1.0 => 0.0..=5.0
 );

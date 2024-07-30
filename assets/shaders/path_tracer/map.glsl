@@ -1,19 +1,29 @@
 Hit map(vec3 pos) {
-    Hit back;
     Hit[2] shapes;
     vec3 tr;
 
     tr = pos;
-    tr = move(tr, vec3(-1.0, 0.0, 0.0));
+    tr = move(tr, vec3(2.46, 0.35, 0));
+    //rot
     shapes[0] = Hit(
-        sdSphere(tr, 1.0)
+    sdCube(tr * 1, vec3(1, 1, 1)) / 1,
+
+    Mat(vec3(1, 1, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
+
     );
 
-    shapes[1] = Hit(sdSphere(pos - vec3(1.0, 0.0, 0.0), 1.0));
+    tr = pos;
+    //pos
+    //rot
+    shapes[1] = Hit(
+    sdSphere(tr * 1, 1) / 1,
 
+    Mat(vec3(1, 1, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
 
-    back = Hit(10000.0);
-    for (int i = 0; i < 2; i ++) {
+    );
+
+    Hit back = shapes[0];
+    for (int i = 1; i < 2; i ++) {
         back = opUnion(back, shapes[i]);
     }
 

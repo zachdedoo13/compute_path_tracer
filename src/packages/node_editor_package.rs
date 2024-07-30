@@ -5,8 +5,8 @@ use egui::{Color32, Context, Frame, Label, Pos2, Rect, Sense, Style, Ui, Vec2};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string};
 use crate::inbuilt::setup::Setup;
+use crate::packages::input_manager_package::InputManager;
 use crate::path_tracer::path_tracer::PathTracer;
-use crate::utility::structs::StorageTexturePackage;
 
 pub struct NodeEditor {
    pub max_size: Vec2,
@@ -17,19 +17,19 @@ pub struct NodeEditor {
 
 impl NodeEditor {
    pub fn new() -> Self {
-      let nodes = vec![
-         Node::new(Pos2::new(50.0, 50.0), Vec2::new(100.0, 50.0), "1".to_string()),
-      ];
 
-      Self {
+      let mut me = Self {
          max_size: Vec2::new(600.0, 600.0),
-         nodes,
+         nodes: vec![],
 
          save_name: "Name".to_string(),
-      }
+      };
+      me.load_map(&"test".to_string());
+
+      me
    }
 
-   pub fn ui<'a>(&mut self, ui: &Context, path_tracer: &mut PathTracer, storage_texture_package: &StorageTexturePackage, setup: &Setup, resized: &'a mut bool) {
+   pub fn ui<'a>(&mut self, ui: &Context, path_tracer: &mut PathTracer, _input_manager: &InputManager, setup: &Setup, resized: &'a mut bool) {
       let mut changed = false;
 
       egui::Window::new("Map editor")
@@ -58,13 +58,10 @@ impl NodeEditor {
                 }
 
                 if ui.button("load").clicked() {
-                   let name = &self.save_name;
-                   let data = fs::read_to_string(&Path::new(format!("assets/maps/{name}.json").as_str()));
-
-                   if let Ok(unwrapped_data) = data {
-                      self.nodes = from_str(&unwrapped_data).unwrap();
+                   if self.load_map(&self.save_name.clone()) {
                       changed = true;
-                   } else {
+                   }
+                   else {
                       self.save_name = "!!not found".to_string();
                    }
                 }
@@ -120,7 +117,7 @@ impl NodeEditor {
           });
 
       if changed {
-         path_tracer.remake_pipeline(setup, storage_texture_package, self.generate_map());
+         path_tracer.remake_pipeline(setup, self.generate_map());
          *resized = true;
       }
    }
@@ -156,11 +153,16 @@ impl NodeEditor {
       map
    }
 
-   #[allow(dead_code)]
-   fn save_scene(&mut self) {} // todo
+   fn load_map(&mut self, name: &String) -> bool {
+      let data = fs::read_to_string(&Path::new(format!("assets/maps/{name}.json").as_str()));
 
-   #[allow(dead_code)]
-   fn load_scenes(&mut self) {} // todo
+      if let Ok(unwrapped_data) = data {
+         self.nodes = from_str(&unwrapped_data).unwrap();
+         return true;
+      }
+
+      false
+   }
 
 }
 
@@ -169,6 +171,7 @@ impl NodeEditor {
 pub enum Shapes {
    Sphere,
    Cube,
+   OctahedronExact,
 }
 impl Shapes {
    pub fn show_enum_dropdown(ui: &mut Ui, selected: &mut Shapes) {
@@ -177,6 +180,7 @@ impl Shapes {
           .show_ui(ui, |ui| {
              ui.selectable_value(selected, Shapes::Sphere, "Sphere");
              ui.selectable_value(selected, Shapes::Cube, "Cube");
+             ui.selectable_value(selected, Shapes::OctahedronExact, "OctahedronExact");
           });
    }
 
@@ -189,6 +193,9 @@ impl Shapes {
             ui.add(egui::DragValue::new(&mut size.0).speed(0.01).clamp_range(0.01..=100.0).prefix("L: "));
             ui.add(egui::DragValue::new(&mut size.1).speed(0.01).clamp_range(0.01..=100.0).prefix("W: "));
             ui.add(egui::DragValue::new(&mut size.2).speed(0.01).clamp_range(0.01..=100.0).prefix("H: "));
+         }
+         Shapes::OctahedronExact => {
+            ui.add(egui::DragValue::new(&mut size.0).speed(0.01).clamp_range(0.01..=100.0).prefix("Size: "));
          }
       }
    }
@@ -321,11 +328,13 @@ impl Node {
       let shape_option = match self.shape {
          Shapes::Sphere => {"sdSphere"}
          Shapes::Cube => {"sdCube"}
+         Shapes::OctahedronExact => {"sdOctahedronExact"}
       };
 
       let size_option = match self.shape {
          Shapes::Sphere => {format!("{}", self.size.0)}
          Shapes::Cube => {format!("vec3({}, {}, {})", self.size.0, self.size.1, self.size.2)}
+         Shapes::OctahedronExact => {format!("{}", self.size.0)}
       };
 
       let p = self.position;
@@ -381,6 +390,11 @@ pub struct Material {
    spec: f32,
    spec_col: (f32, f32, f32),
    roughness: f32,
+
+   ior: f32,
+   refraction_chance: f32,
+   refraction_roughness: f32,
+   refraction_color: (f32, f32, f32),
 }
 impl Material {
    pub fn ui(&mut self, big_ui: &mut Ui) {
@@ -410,6 +424,13 @@ impl Material {
              // rough
              ui.add(egui::DragValue::new(&mut self.roughness).speed(0.001).clamp_range(0.0..=5.0).prefix("Roughness: "));
 
+             // refraction
+             ui.add(egui::DragValue::new(&mut self.ior).speed(0.001).clamp_range(0.0..=5.0).prefix("IOR: "));
+             ui.add(egui::DragValue::new(&mut self.refraction_chance).speed(0.001).clamp_range(0.0..=5.0).prefix("Refraction %: "));
+             ui.add(egui::DragValue::new(&mut self.refraction_roughness).speed(0.001).clamp_range(0.0..=5.0).prefix("Refract Roughness: "));
+
+             display_color(&mut self.refraction_color, "Refract col  ", ui);
+
           });
    }
 
@@ -424,8 +445,11 @@ impl Material {
 
       let roughness = format!("{}", self.roughness);
 
+      let ior_rc_rr = format!("{}, {}, {}", self.ior, self.refraction_chance, self.refraction_roughness);
+      let refraction_color = format!("vec3({}, {}, {})", self.refraction_color.0, self.refraction_color.1, self.refraction_color.2);
+
       String::from(format!(r#"
-         Mat({color}, {light}, {spec}, {spec_col}, {roughness})
+         Mat({color}, {light}, {spec}, {spec_col}, {roughness}, {ior_rc_rr}, {refraction_color})
       "#))
    }
 }
@@ -441,6 +465,11 @@ impl Default for Material {
          spec: 0.0,
          spec_col: (0.0, 0.0, 0.0),
          roughness: 0.0,
+
+         ior: 0.0,
+         refraction_chance: 0.0,
+         refraction_roughness: 0.0,
+         refraction_color: (0.0, 0.0, 0.0),
       }
    }
 }

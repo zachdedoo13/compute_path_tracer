@@ -2,9 +2,11 @@ use egui::Label;
 use std::iter;
 use egui::{Align2, Context, Frame, Style, Ui};
 use egui_wgpu::ScreenDescriptor;
-use wgpu::{CommandEncoder, TextureView, TextureViewDescriptor};
+use pollster::block_on;
+use wgpu::{BufferUsages, CommandEncoder, ImageCopyBuffer, ImageCopyTexture, ImageDataLayout, TextureView, TextureViewDescriptor};
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
+use winit::keyboard::KeyCode;
 use winit::window::Window;
 use crate::inbuilt::gui::EguiRenderer;
 use crate::inbuilt::setup::Setup;
@@ -94,6 +96,14 @@ impl<'a> State<'a> {
 
       self.path_tracer.update(&self.setup, &mut self.render_texture, &self.time_package, &self.input_manager, self.resized);
 
+      if self.input_manager.is_key_just_pressed(KeyCode::Space) {self.path_tracer.remake_pipeline(&self.setup, self.node_editor.generate_map())}
+
+
+      if self.input_manager.is_key_just_pressed(KeyCode::KeyS) {
+         self.save_image();
+      }
+
+
       self.input_manager.reset();
       self.resized = false;
    }
@@ -103,6 +113,8 @@ impl<'a> State<'a> {
          size_in_pixels: [self.setup.config.width, self.setup.config.height],
          pixels_per_point: self.setup.window.scale_factor() as f32,
       };
+
+      let mut save_image = false;
 
       let run_ui = |ui: &Context| {
          // place ui functions hear
@@ -141,6 +153,10 @@ impl<'a> State<'a> {
                egui::CollapsingHeader::new("Other")
                    .default_open(true)
                    .show(ui, |ui| {
+                      if ui.add(egui::Button::new("Save Image")).clicked() {
+                         save_image = true;
+                      }
+
                       if ui.add(egui::Button::new("Map Editor")).clicked() {
                          self.editor_open = !self.editor_open;
                       }
@@ -162,7 +178,7 @@ impl<'a> State<'a> {
              .show(&ui, code);
 
          if self.editor_open {
-            self.node_editor.ui(ui, &mut self.path_tracer, &self.render_texture, &self.setup, &mut self.resized);
+            self.node_editor.ui(ui, &mut self.path_tracer, &self.input_manager, &self.setup, &mut self.resized);
          }
       };
 
@@ -175,6 +191,8 @@ impl<'a> State<'a> {
          screen_descriptor,
          run_ui,
       );
+
+      if save_image { self.save_image(); }
    }
 
    pub fn render(&mut self) -> Result<(), wgpu::SurfaceError> {
@@ -196,5 +214,73 @@ impl<'a> State<'a> {
       output.present();
 
       Ok(())
+   }
+
+   fn save_image(&mut self) {
+      let staging_buffer = self.setup.device.create_buffer(&wgpu::BufferDescriptor {
+         label: None,
+         size: ((self.render_texture.size.width as f32 * self.render_texture.size.height as f32) * (4.0 * std::mem::size_of::<f32>() as f32)) as u64,
+         usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
+         mapped_at_creation: false,
+      });
+
+      let copy_staging_buffer = ImageCopyBuffer {
+         buffer: &staging_buffer,
+         layout: ImageDataLayout {
+            offset: 0,
+            bytes_per_row: Some((4 * std::mem::size_of::<f32>() as u32) * (self.render_texture.size.width)),
+            rows_per_image: Some(self.render_texture.size.height),
+         },
+      };
+
+      let image_copy_texture = ImageCopyTexture {
+         texture: &self.render_texture.texture,
+         mip_level: 0,
+         origin: Default::default(),
+         aspect: Default::default(),
+      };
+
+      let mut encoder = self.setup.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("texture copy encoder") });
+
+      encoder.copy_texture_to_buffer(image_copy_texture, copy_staging_buffer, self.render_texture.size);
+      self.setup.queue.submit(iter::once(encoder.finish()));
+
+      let buffer_slice = staging_buffer.slice(..);
+      let (sender, receiver) = flume::bounded(1);
+      buffer_slice.map_async(wgpu::MapMode::Read, move |v| sender.send(v).unwrap());
+
+      self.setup.device.poll(wgpu::Maintain::wait()).panic_on_timeout();
+
+      let future = async {
+         if let Ok(Ok(())) = receiver.recv_async().await {
+            let data = buffer_slice.get_mapped_range();
+
+            use image::{ImageBuffer, Rgba};
+            let width = self.render_texture.size.width;
+            let height = self.render_texture.size.height;
+
+            let result: &[f32] = bytemuck::cast_slice(&data);
+            let mut img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(width, height);
+            for (x, y, pixel) in img.enumerate_pixels_mut() {
+               let idx = ((height - 1 - y) * width + x) as usize * 4;
+               *pixel = Rgba([
+                  (result[idx].powf(1.0 / 2.2) * 255.0) as u8, // Apply gamma correction
+                  (result[idx + 1].powf(1.0 / 2.2) * 255.0) as u8,
+                  (result[idx + 2].powf(1.0 / 2.2) * 255.0) as u8,
+                  (result[idx + 3] * 255.0) as u8,
+               ]);
+            }
+
+            img.save("image.bmp").unwrap();
+
+            println!("done");
+
+
+            drop(data);
+            staging_buffer.unmap();
+         }
+      };
+
+      block_on(future);
    }
 }

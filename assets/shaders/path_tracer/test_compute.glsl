@@ -13,12 +13,18 @@ layout(set = 1, binding = 0) uniform Constants {
 layout(set = 2, binding = 0) uniform Settings {
     int debug;
     int bounces;
+    float scale;
+    float fov;
 } s;
 
+
+#define STEPS 80
 
 #define MHD 0.001
 #define FP 100.0
 #define OFFSET 0.03
+
+#define AMBENT 0.2
 
 
 const float PI = 3.14159265359;
@@ -27,8 +33,8 @@ const float PI2 = 2.0f * PI;
 
 //!code start flag
 
-struct Ray {vec3 ro; vec3 rd; }
-;
+struct Ray {vec3 ro; vec3 rd; };
+
 struct Mat {
     vec3 col;
     vec3 light;
@@ -37,17 +43,19 @@ struct Mat {
     vec3 spec_col;
     float roughness;
 
-//    float ior;
-//    float refrac;
+    float IOR;
+    float reftact_chance;
+    float refract_roughness;
+    vec3 refreact_col;
 };
 struct Hit {float d; Mat mat; };
 
 
-#define MDEF Mat(vec3(0.0), vec3(0.0), 0.0, vec3(0.0), 0.0)
+#define MDEF Mat(vec3(0.0), vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0, 0.0, vec3(0.0))
 
 
 #include "shapes.glsl"
-#include "map.glsl"
+#include "map"
 #include "funcs.glsl"
 #include "rng.glsl"
 
@@ -57,7 +65,7 @@ struct Hit {float d; Mat mat; };
 Hit CastRay(Ray ray) {
     float t = 0.0;
     Mat mat;
-    for (int i = 0; i < 80; i++) {
+    for (int i = 0; i < STEPS; i++) {
         vec3 p = ray.ro + ray.rd * t;
         Hit hit = map(p);
         mat = hit.mat;
@@ -69,36 +77,76 @@ Hit CastRay(Ray ray) {
     return Hit(t, mat);
 }
 
-
 vec3 path_trace(Ray start_ray, uint rng) {
     // init
     vec3 ret = vec3(0.0);
     vec3 throughput = vec3(1.0);
     Ray ray = start_ray;
 
-    // path traceing loop 
-    for (int i = 0; i <= s.bounces; i++) {
+    // path traceing loop
+    int i;
+    for (i = 0; i <= s.bounces; i++) {
         Hit hit = CastRay(ray);
 
         // out of bounds
         if (hit.d > FP) {
-            ret += vec3(0.0);
             break;
         }
 
+        // update the ray position
         vec3 hit_pos = calc_point(ray, hit.d);
         vec3 hit_normal = calc_normal(hit_pos);
         ray.ro = hit_pos + hit_normal * OFFSET;
 
-        ray.rd = normalize(hit_normal + RandomUnitVector(rng));
+        // lighting
+        {
+            float spec_chance = hit.mat.spec;
 
-        ret += hit.mat.light * throughput;
+            if (spec_chance > 0.0) { }; // frenel
 
-        throughput *= hit.mat.col;
+            bool do_spec = (RandomFloat01(rng) < spec_chance);
+
+            // get the probability for choosing the ray type we chose
+            float ray_prob = do_spec? spec_chance : 1.0 - spec_chance;
+            ray_prob = max(ray_prob, 0.0001);
+
+            {
+                // Calculate a new ray direction.
+                // Diffuse uses a normal oriented cosine weighted hemisphere sample.
+                vec3 diffuse_ray_dir = normalize(hit_normal + RandomUnitVector(rng));
+
+                if (do_spec) {
+                    vec3 spec_ray_dir = reflect(ray.rd, hit_normal);
+                    spec_ray_dir = normalize(mix(spec_ray_dir, diffuse_ray_dir, hit.mat.roughness * hit.mat.roughness));
+                    ray.rd = spec_ray_dir;
+                } else {
+                    ray.rd = diffuse_ray_dir;
+                }
+            }
+
+            ret += hit.mat.light * throughput;
+            throughput *= mix(hit.mat.col, hit.mat.spec_col, float(do_spec));
+
+            throughput /= ray_prob;
+        }
+
+        // Russian Roulette
+        {
+            float p = max(throughput.r, max(throughput.g, throughput.b));
+            if (RandomFloat01(rng) > p) break;
+
+            // Add the energy we 'lose' by randomly terminating paths
+            throughput *= 1.0f / p;
+        }
+
     }
+
+    if (s.debug == 3) { return vec3(float(i) / float(s.bounces)); }
 
     return ret;
 }
+
+
 
 vec3 normals(Ray ray) {
 
@@ -118,8 +166,10 @@ vec3 colors(Ray ray) {
     return test.mat.col;
 }
 
+
+
 vec3 calc_color(Ray ray, uint rng) {
-    if (s.debug == 0) {
+    if (s.debug == 0 || s.debug == 3) {
         return path_trace(ray, rng);
     }
 
@@ -141,22 +191,26 @@ void main() {
     ivec2 gl_uv = ivec2(gl_GlobalInvocationID.xy);
     ivec2 dimentions = imageSize(the_texture);
     if (bounds_check(gl_uv, dimentions)) { return; }
-    vec2 uv = calc_uv(gl_uv, dimentions);
 
     uint rng = gen_rng(gl_uv, c.cframe, dimentions);
+
+    // calculate subpixel camera jitter for anti aliasing
+    vec2 jitter = vec2(RandomFloat01(rng), RandomFloat01(rng)) - 0.5;
+
+    vec2 uv = calc_uv(vec2(gl_uv) + jitter, dimentions);
 
 
     Ray ray = Ray(
         vec3(0.0, 0.0, -3.0), // origin
-        normalize(vec3(uv, 1.0)) // direction
+        normalize(vec3(uv, s.fov)) // direction
     );
 
+    // pathtraceing
     vec3 col = calc_color(ray, rng);
 
-    if (s.debug != 0) { imageStore(the_texture, gl_uv, vec4(col, 1.0)); return; }
+    if (s.debug != 0) { imageStore(the_texture, gl_uv, vec4(col, 1.0)); return; } // instant return if not 0
 
     vec3 last_col = imageLoad(the_texture, gl_uv).rgb;
-
     col = mix(last_col, col, 1.0 / float(c.last_clear + 1));
 
     imageStore(the_texture, gl_uv, vec4(col, 1.0));
