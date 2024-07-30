@@ -271,7 +271,7 @@ impl<'a> State<'a> {
                ]);
             }
 
-            img.save("image.bmp").unwrap();
+            img.save("image.png").unwrap();
 
             println!("done");
 
