@@ -157,13 +157,17 @@ vec3 normals(Ray ray) {
     return normalize(calc_normal(calc_point(ray, test.d))) * 0.5 + 0.5;
 }
 
+
+#include "test.glsl"
 vec3 colors(Ray ray) {
 
-    Hit test = CastRay(ray);
+//    Hit test = CastRay(ray);
 
-    if (test.d > FP) { return vec3(0.0); }
+//    if (test.d > FP) { return vec3(0.0); }
 
-    return test.mat.col;
+//    return test.mat.col;
+
+    return test_cast(ray);
 }
 
 
@@ -188,6 +192,7 @@ vec3 calc_color(Ray ray, uint rng) {
 
 
 void main() {
+//    return;
     ivec2 gl_uv = ivec2(gl_GlobalInvocationID.xy);
     ivec2 dimentions = imageSize(the_texture);
     if (bounds_check(gl_uv, dimentions)) { return; }
@@ -209,9 +214,9 @@ void main() {
     vec3 col = calc_color(ray, rng);
 
     if (s.debug != 0) { imageStore(the_texture, gl_uv, vec4(col, 1.0)); return; } // instant return if not 0
-
-    vec3 last_col = imageLoad(the_texture, gl_uv).rgb;
-    col = mix(last_col, col, 1.0 / float(c.last_clear + 1));
+//
+//    vec3 last_col = imageLoad(the_texture, gl_uv).rgb;
+//    col = mix(last_col, col, 1.0 / float(c.last_clear + 1));
 
     imageStore(the_texture, gl_uv, vec4(col, 1.0));
 }
