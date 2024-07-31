@@ -15,6 +15,7 @@ layout(set = 2, binding = 0) uniform Settings {
     int bounces;
     float scale;
     float fov;
+    int aabb;
 } s;
 
 
@@ -26,6 +27,8 @@ layout(set = 2, binding = 0) uniform Settings {
 
 #define AMBENT 0.2
 
+
+#define BIGNUM 100000.0
 
 const float PI = 3.14159265359;
 const float PI2 = 2.0f * PI;
@@ -60,6 +63,7 @@ struct Hit {float d; Mat mat; };
 #include "rng.glsl"
 
 
+#include "tester.glsl"
 
 
 Hit CastRay(Ray ray) {
@@ -86,7 +90,16 @@ vec3 path_trace(Ray start_ray, uint rng) {
     // path traceing loop
     int i;
     for (i = 0; i <= s.bounces; i++) {
+//        OTA hits;
+//        Hit hit;
+//        int bc = 0;
+//        hits = bounds_map(ray, bc);
+//
+//        int steps;
+//        hit = TestCastRay(ray, steps, hits);
+
         Hit hit = CastRay(ray);
+
 
         // out of bounds
         if (hit.d > FP) {
@@ -95,7 +108,12 @@ vec3 path_trace(Ray start_ray, uint rng) {
 
         // update the ray position
         vec3 hit_pos = calc_point(ray, hit.d);
+
+
+//       vec3 hit_normal = test_calc_normal(hit_pos, hits);
+
         vec3 hit_normal = calc_normal(hit_pos);
+
         ray.ro = hit_pos + hit_normal * OFFSET;
 
         // lighting
@@ -158,7 +176,7 @@ vec3 normals(Ray ray) {
 }
 
 
-#include "test.glsl"
+
 vec3 colors(Ray ray) {
 
 //    Hit test = CastRay(ray);
@@ -215,8 +233,8 @@ void main() {
 
     if (s.debug != 0) { imageStore(the_texture, gl_uv, vec4(col, 1.0)); return; } // instant return if not 0
 //
-//    vec3 last_col = imageLoad(the_texture, gl_uv).rgb;
-//    col = mix(last_col, col, 1.0 / float(c.last_clear + 1));
+    vec3 last_col = imageLoad(the_texture, gl_uv).rgb;
+    col = mix(last_col, col, 1.0 / float(c.last_clear + 1));
 
     imageStore(the_texture, gl_uv, vec4(col, 1.0));
 }

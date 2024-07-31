@@ -15,6 +15,7 @@ layout(set = 2, binding = 0) uniform Settings {
     int bounces;
     float scale;
     float fov;
+    int aabb;
 } s;
 
 
@@ -26,6 +27,8 @@ layout(set = 2, binding = 0) uniform Settings {
 
 #define AMBENT 0.2
 
+
+#define BIGNUM 100000.0
 
 const float PI = 3.14159265359;
 const float PI2 = 2.0f * PI;
@@ -345,6 +348,214 @@ uint gen_rng(ivec2 gl_uv, int frame, ivec2 dimentions)
 // end include
 
 
+// included "assets/shaders/path_tracer\\tester.glsl"
+struct Cube {
+    vec3 min;
+    vec3 max;
+};
+
+float expensiveFunction(vec3 p, float s) {
+    float result = 0.0;
+    for (int i = 0; i < 100; i++) {
+        result += sqrt(float(i) * 0.3214);
+    }
+    return 1.0 / result;
+}
+
+float expensive_sdf(vec3 p, float s) {
+    return length(p) - s - (expensiveFunction(p, s) * 0.0000001);
+    //    return length(p) - s;
+}
+
+vec2 intersectAABB(Ray ray, Cube cube) {
+    vec3 tMin = (cube.min - ray.ro) / ray.rd;
+    vec3 tMax = (cube.max - ray.ro) / ray.rd;
+    vec3 t1 = min(tMin, tMax);
+    vec3 t2 = max(tMin, tMax);
+    float tNear = max(max(t1.x, t1.y), t1.z);
+    float tFar = min(min(t2.x, t2.y), t2.z);
+    return vec2(tNear, tFar);
+}
+
+bool bool_hit(vec2 intersect) {
+    return intersect.x < intersect.y && intersect.y > 0.0;
+}
+
+Cube from_pos_size(vec3 pos, vec3 size) {
+    Cube cube;
+    cube.min = pos - size;
+    cube.max = pos + size;
+
+    return cube;
+}
+
+
+#define A 4
+const mat2x3[A] objects = mat2x3[A](
+    mat2x3(vec3(0, -2.32, 0), vec3(11.63, 1, 12.26)), // floor
+    mat2x3(vec3(0, 3.25, 0), vec3(1.0, 1.0, 1.0)),
+    mat2x3(vec3(0, -0.06, 1.8), vec3(1.0)),
+    mat2x3(vec3(-0.05, -0.2, 1.8), vec3(1.0))
+);
+
+#define OTA bool[A]
+
+Hit test_map(vec3 pos, OTA test) {
+    vec3 tr;
+    Hit back = Hit(BIGNUM, MDEF);
+    Hit temp;
+
+    if (s.aabb == 1) {
+        for (int i = 0; i < A; i++) { test[i] = true; }
+    }
+
+    // 0
+    if (test[0]) {
+        tr = pos;
+        tr = move(tr, objects[0][0]);
+        //rot
+        temp = Hit(
+        sdCube(tr * 1, objects[0][1]) / 1,
+
+        Mat(vec3(0, 0.6313726, 1), vec3(0.0), 0.75, vec3(0.50980395, 0.53333336, 1), 0.2, 0, 0, 0.015, vec3(0.4509804, 0, 0))
+        );
+
+        back = opUnion(back, temp);
+    }
+
+    if (test[1]) {
+        tr = pos;
+        tr = move(tr, objects[1][0]);
+        //rot
+        temp = Hit(
+        sdCube(tr * 1, objects[1][1]) / 1,
+
+        Mat(vec3(0, 0, 0), vec3(2.0), 0, vec3(0, 0, 0), 0, 0, 0, 0, vec3(0, 0, 0))
+        );
+
+        back = opUnion(back, temp);
+    }
+
+    if (test[2]) {
+        tr = pos;
+        tr = move(tr, objects[2][0]);
+        tr = rot3D(tr, vec3(1.61, 2.82, 1.87));
+        temp =  Hit(
+        sdOctahedronExact(tr * 1, 1) / 1,
+
+        Mat(vec3(1, 0, 0), vec3(0), 0.0, vec3(0.5, 0, 0), 1.0, 0, 0, 0, vec3(0, 0, 0))
+        );
+
+        back = opUnion(back, temp);
+    }
+
+    if (test[3]) {
+        tr = pos;
+        tr = move(tr, objects[3][0]);
+        tr = rot3D(tr, vec3(1.7, 1.8, 2.68));
+        temp =  Hit(
+        sdOctahedronExact(tr * 1, 1) / 1,
+
+        Mat(vec3(0, 0, 0), vec3(0, 0, 0), 1, vec3(1, 1, 1), 0.555, 0, 0, 0, vec3(0, 0, 0))
+        );
+
+        back = opUnion(back, temp);
+    }
+
+
+    return back;
+}
+
+
+float t_pull(vec3 p, vec3 e, OTA hits)
+{
+    return test_map(p + e, hits).d;
+}
+
+vec3 test_calc_normal(vec3 p, OTA hits) {
+    const vec3 e = vec3(.0001, 0.0, 0.0);
+    return normalize(
+        vec3(
+            t_pull(p, e.xyy, hits) - t_pull(p, -e.xyy, hits),
+            t_pull(p, e.yxy, hits) - t_pull(p, -e.yxy, hits),
+            t_pull(p, e.yyx, hits) - t_pull(p, -e.yyx, hits)
+        )
+    );
+}
+
+
+OTA bounds_map(Ray ray, inout int bc) {
+    vec2 inter;
+    OTA hits;
+
+
+    for (int i = 0; i < A; i++) {
+        if (bool_hit(intersectAABB(ray, from_pos_size(objects[i][0], objects[i][1] * 1.5)))) {
+            hits[i] = true;
+
+            bc += 1;
+        }
+    }
+
+
+    return hits;
+}
+
+
+
+Hit TestCastRay(Ray ray, inout int steps, OTA bounds) {
+    float t = 0.0;
+    Mat mat;
+    for (steps = 0; steps < STEPS; steps++) {
+        vec3 p = ray.ro + ray.rd * t;
+        Hit hit = test_map(p, bounds);
+        mat = hit.mat;
+        t += hit.d;
+
+        if (hit.d < MHD) break;
+        if (t > FP) break;
+    }
+    return Hit(t, mat);
+}
+
+
+
+vec3 test_cast(Ray in_ray) {
+    Ray ray = in_ray;
+
+    vec3 col = vec3(0.0);
+    vec3 intersect_color = vec3(0.0);
+
+    int steps;
+
+    if (s.bounces < 8)
+    {
+        OTA hits;
+        for (int i = 0; i < A; i++) {hits[i] = true; }
+        float d = TestCastRay(ray, steps, hits).d;
+        if (d < FP) { col.b += d / 5.0; }
+        col.g = float(steps) / float(STEPS);
+        return col;
+    }
+
+
+        int bc = 0;
+    OTA hits = bounds_map(ray, bc);
+
+    col.r = float(bc) / float(A);
+
+
+    float d = TestCastRay(ray, steps, hits).d;
+    if (d < FP) { col.b += d / 5.0; }
+
+
+
+    col.g = float(steps) / float(STEPS);
+
+    return col + intersect_color;
+}
+
+// end include
 
 
 Hit CastRay(Ray ray) {
@@ -371,7 +582,16 @@ vec3 path_trace(Ray start_ray, uint rng) {
     // path traceing loop
     int i;
     for (i = 0; i <= s.bounces; i++) {
+//        OTA hits;
+//        Hit hit;
+//        int bc = 0;
+//        hits = bounds_map(ray, bc);
+//
+//        int steps;
+//        hit = TestCastRay(ray, steps, hits);
+
         Hit hit = CastRay(ray);
+
 
         // out of bounds
         if (hit.d > FP) {
@@ -380,7 +600,12 @@ vec3 path_trace(Ray start_ray, uint rng) {
 
         // update the ray position
         vec3 hit_pos = calc_point(ray, hit.d);
+
+
+//       vec3 hit_normal = test_calc_normal(hit_pos, hits);
+
         vec3 hit_normal = calc_normal(hit_pos);
+
         ray.ro = hit_pos + hit_normal * OFFSET;
 
         // lighting
@@ -443,92 +668,7 @@ vec3 normals(Ray ray) {
 }
 
 
-// included "assets/shaders/path_tracer\\test.glsl"
-struct Cube {
-    vec3 min;
-    vec3 max;
-};
 
-float expensiveFunction(vec3 p, float s) {
-    float result = 0.0;
-    for (int i = 0; i < 5000; i++) {
-        result += sqrt(float(i) * 0.3214);
-    }
-    return 1.0 / result;
-}
-
-float expensive_sdf(vec3 p, float s) {
-    return length(p) - s - (expensiveFunction(p, s) * 0.0000001);
-}
-
-vec2 intersectAABB(Ray ray, Cube cube) {
-    vec3 tMin = (cube.min - ray.ro) / ray.rd;
-    vec3 tMax = (cube.max - ray.ro) / ray.rd;
-    vec3 t1 = min(tMin, tMax);
-    vec3 t2 = max(tMin, tMax);
-    float tNear = max(max(t1.x, t1.y), t1.z);
-    float tFar = min(min(t2.x, t2.y), t2.z);
-    return vec2(tNear, tFar);
-}
-
-bool bool_hit(vec2 intersect) {
-    return intersect.x < intersect.y && intersect.y > 0.0;
-}
-
-Cube from_pos_size(vec3 pos, vec3 size) {
-    Cube cube;
-    cube.min = pos - size;
-    cube.max = pos + size;
-
-    return cube;
-}
-
-Hit test_map(vec3 pos) {
-    Hit sphere;
-    sphere.d = expensive_sdf(pos - vec3(0.0, sin(c.time) * 2.0, 0.0), 1.0);
-    sphere.mat = MDEF;
-
-    return sphere;
-}
-
-Hit TestCastRay(Ray ray) {
-    float t = 0.0;
-    Mat mat;
-    for (int i = 0; i < STEPS; i++) {
-        vec3 p = ray.ro + ray.rd * t;
-        Hit hit = test_map(p);
-        mat = hit.mat;
-        t += hit.d;
-
-        if (abs(hit.d) < MHD) break;
-        if (t > FP) break;
-    }
-    return Hit(t, mat);
-}
-
-
-vec3 test_cast(Ray in_ray) {
-    Ray ray = in_ray;
-    ray.ro.x += sin(c.time) * 3.0;
-
-    vec3 col = vec3(0.0);
-    vec3 intersect_color = vec3(0.0);
-
-    float d = TestCastRay(ray).d;
-    if (d < FP) { col.b += d / 5.0; }
-
-//    vec2 intersect = intersectAABB(ray, from_pos_size(vec3(0.0, sin(c.time) * 2.0, 0.0), vec3(1.0)));  // Assuming the cube remains the same
-//    if (bool_hit(intersect)) {
-//        intersect_color.r = 0.01;  // Return a color (e.g., white) if the ray intersects the AABB
-//
-//        float d = TestCastRay(ray).d;
-//        if (d < FP) { col.b += d / 5.0; }
-//    }
-
-    return col + intersect_color;
-}
-
-// end include
 vec3 colors(Ray ray) {
 
 //    Hit test = CastRay(ray);
@@ -585,8 +725,8 @@ void main() {
 
     if (s.debug != 0) { imageStore(the_texture, gl_uv, vec4(col, 1.0)); return; } // instant return if not 0
 //
-//    vec3 last_col = imageLoad(the_texture, gl_uv).rgb;
-//    col = mix(last_col, col, 1.0 / float(c.last_clear + 1));
+    vec3 last_col = imageLoad(the_texture, gl_uv).rgb;
+    col = mix(last_col, col, 1.0 / float(c.last_clear + 1));
 
     imageStore(the_texture, gl_uv, vec4(col, 1.0));
 }

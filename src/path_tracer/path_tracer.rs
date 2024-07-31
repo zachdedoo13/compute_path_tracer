@@ -156,5 +156,6 @@ defaults_and_sliders_gui!(
    debug: i32 = 2 => 0..=3,
    bounces: i32 = 8 => 0..=16,
    scale: f32 = 1.0 => 0.1..=1.0,
-   fov: f32 = 1.0 => 0.0..=5.0
+   fov: f32 = 1.0 => 0.0..=5.0,
+   aabb: i32 = 0 => 0..=1
 );
