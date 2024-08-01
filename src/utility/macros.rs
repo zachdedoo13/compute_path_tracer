@@ -100,3 +100,13 @@ macro_rules! defaults_only_gui {
         }
     };
 }
+
+
+#[macro_export]
+macro_rules! if_is_type {
+    ($name: ident, $input:expr, $field_type:ty, $code:block) => {
+        if let Some($name) = $input.as_any().downcast_ref::<$field_type>() {
+            $code
+        }
+    };
+}

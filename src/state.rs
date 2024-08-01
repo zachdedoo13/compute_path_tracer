@@ -11,6 +11,7 @@ use winit::window::Window;
 use crate::inbuilt::gui::EguiRenderer;
 use crate::inbuilt::setup::Setup;
 use crate::packages::input_manager_package::InputManager;
+use crate::packages::new_node_editor::NewNodeEditor;
 use crate::packages::node_editor_package::NodeEditor;
 use crate::packages::time_package::TimePackage;
 use crate::path_tracer::path_tracer::PathTracer;
@@ -33,6 +34,8 @@ pub struct State<'a> {
 
    path_tracer: PathTracer,
    node_editor: NodeEditor,
+
+   new_node_editor: NewNodeEditor,
 }
 
 impl<'a> State<'a> {
@@ -44,6 +47,7 @@ impl<'a> State<'a> {
 
 
       let mut node_editor = NodeEditor::new();
+      let mut new_node_editor = NewNodeEditor::new();
 
       // packages
       let time_package = TimePackage::new();
@@ -72,6 +76,7 @@ impl<'a> State<'a> {
          path_tracer,
 
          node_editor,
+         new_node_editor,
       }
    }
 
@@ -180,6 +185,8 @@ impl<'a> State<'a> {
          if self.editor_open {
             self.node_editor.ui(ui, &mut self.path_tracer, &self.input_manager, &self.setup, &mut self.resized);
          }
+
+         self.new_node_editor.ui(ui);
       };
 
       self.egui.draw(
