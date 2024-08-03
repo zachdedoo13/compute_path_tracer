@@ -16,6 +16,7 @@ use crate::packages::node_editor_package::NodeEditor;
 use crate::packages::time_package::TimePackage;
 use crate::path_tracer::path_tracer::PathTracer;
 use crate::pipelines::render_texture_pipeline::RenderTexturePipeline;
+use crate::sdf_editor::sdf_editor::SDFEditor;
 use crate::utility::structs::StorageTexturePackage;
 
 pub struct State<'a> {
@@ -36,6 +37,8 @@ pub struct State<'a> {
    node_editor: NodeEditor,
 
    new_node_editor: NewNodeEditor,
+
+   sdf_editor: SDFEditor,
 }
 
 impl<'a> State<'a> {
@@ -48,6 +51,8 @@ impl<'a> State<'a> {
 
       let mut node_editor = NodeEditor::new();
       let mut new_node_editor = NewNodeEditor::new();
+
+      let sdf_editor = SDFEditor::new();
 
       // packages
       let time_package = TimePackage::new();
@@ -77,6 +82,8 @@ impl<'a> State<'a> {
 
          node_editor,
          new_node_editor,
+         
+         sdf_editor,
       }
    }
 
@@ -109,6 +116,9 @@ impl<'a> State<'a> {
       }
 
 
+      self.sdf_editor.update();
+
+
       self.input_manager.reset();
       self.resized = false;
    }
@@ -121,7 +131,7 @@ impl<'a> State<'a> {
 
       let mut save_image = false;
 
-      let run_ui = |ui: &Context| {
+      let run_ui = |context: &Context| {
          // place ui functions hear
          let code = |ui: &mut Ui| {
             // performance ui built in
@@ -180,13 +190,15 @@ impl<'a> State<'a> {
              .resizable(true)
              .anchor(Align2::LEFT_TOP, [0.0, 0.0])
              .frame(Frame::window(&Style::default()))
-             .show(&ui, code);
+             .show(&context, code);
 
          if self.editor_open {
-            self.node_editor.ui(ui, &mut self.path_tracer, &self.input_manager, &self.setup, &mut self.resized);
+            self.node_editor.ui(context, &mut self.path_tracer, &self.input_manager, &self.setup, &mut self.resized);
          }
 
-         self.new_node_editor.ui(ui);
+         self.new_node_editor.ui(context);
+         
+         self.sdf_editor.ui(context);
       };
 
       self.egui.draw(
@@ -210,7 +222,7 @@ impl<'a> State<'a> {
       });
 
       {
-         self.path_tracer.compute_pass(&mut encoder, &self.render_texture);
+         // self.path_tracer.compute_pass(&mut encoder, &self.render_texture);
          self.render_texture_pipeline.render_pass(&mut encoder, &view, &self.render_texture);
       }
 
