@@ -32,7 +32,7 @@ macro_rules! defaults_and_sliders_gui {
     };
 }
 
-//ui.add(egui::DragValue::new(&mut self.scale).speed(0.001).clamp_range(0.001..=100.0).prefix("Scale: "));
+
 #[macro_export]
 macro_rules! defaults_and_drag_value_gui {
     ($name:ident, $($field_name:ident: $field_type:ty = $default:expr => $range:expr),*) => {
@@ -107,6 +107,25 @@ macro_rules! if_is_type {
     ($name: ident, $input:expr, $field_type:ty, $code:block) => {
         if let Some($name) = $input.as_any().downcast_ref::<$field_type>() {
             $code
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! enum_egui_dropdown {
+    ($name: ident, $($option:ident),* ) => {
+        #[derive(Debug, PartialEq, Serialize, Deserialize)]
+        pub enum $name {
+            $($option,)*
+        }
+        impl $name {
+            pub fn dropdown(&mut self, ui: &mut Ui) {
+                ComboBox::from_label("")
+                .selected_text(format!("{:?}", self))
+                .show_ui(ui, |ui| {
+                    $(ui.selectable_value(self, $name::$option, stringify!($option));)*
+                });
+            }
         }
     };
 }
