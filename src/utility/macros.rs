@@ -113,7 +113,7 @@ macro_rules! if_is_type {
 
 #[macro_export]
 macro_rules! enum_egui_dropdown {
-    ($name: ident, $($option:ident),* ) => {
+    ($name: ident, $($option:tt),* ) => {
         #[derive(Debug, PartialEq, Serialize, Deserialize)]
         pub enum $name {
             $($option,)*
