@@ -195,7 +195,7 @@ impl SDFEditor {
       let st = Instant::now();
       println!("Compiling {}", char::from(random::<u8>().to_ascii_uppercase()) );
 
-      let mut comp_data = CompData { union_index: 0, union_depth: 0 };
+      let mut comp_data = CompData::new();
 
       let mut out = String::new();
 
@@ -203,6 +203,7 @@ impl SDFEditor {
       #define MAXHIT Hit(10000.0, MDEF)
 
       Hit map(vec3 pu0) {
+         Hit u0 = MAXHIT;
 
       "#);
 
@@ -212,12 +213,16 @@ impl SDFEditor {
       }
 
 
+      for shape in self.header_shapes.iter_mut() {
+         out.push_str(shape.compile(&mut comp_data).as_str());
+      }
 
 
+      out.push_str(r#"
+         return u0;
+      }
 
-
-
-
+      "#);
 
 
       println!("Compiled in {:?}", st.elapsed());
@@ -237,6 +242,7 @@ impl SDFEditor {
    }
 }
 
+
 struct CompData {
    union_index: u32,
    union_depth: u32,
@@ -249,20 +255,11 @@ impl CompData {
       }
    }
 
-   pub fn add_union(&mut self) {
+   pub fn inc_union(&mut self) {
       self.union_index += 1;
    }
-
-   pub fn init_union(&mut self) -> String {
-      format!("Hit u{} = MAXHIT", self.union_index)
-   }
-
-   pub fn get_union(&self) -> String {
-      format!("u{}", self.union_index)
-   }
-
-   pub fn get_transform(&self) -> String {
-      format!("pu{}", self.union_index)
+   pub fn inc_depth(&mut self) {
+      self.union_depth += 1;
    }
 }
 
@@ -386,11 +383,6 @@ impl Union {
 
    fn compile(&self, comp_data: &mut CompData) -> String {
       let mut out = String::new();
-      comp_data.add_union();
-
-      out.push_str(format!("{}\n", comp_data.init_union().as_str()).as_str());
-
-      out.push_str(format!("{}", self.transform.compile(&comp_data.get_transform())).as_str());
 
 
 
@@ -421,6 +413,14 @@ impl Shapes {
          Shapes::Sphere(_) => {"Sphere"}
          Shapes::Cube(_) => {"Cube"}
          Shapes::Plane => {"Plane"}
+      }
+   }
+
+   fn compile_name(&self) -> String {
+      return match self {
+         Shapes::Sphere(_) => { "sdSphere".to_string() }
+         Shapes::Cube(_) => { "sdCube".to_string() }
+         Shapes::Plane => { "NotImplemented".to_string() }
       }
    }
 }
@@ -511,6 +511,25 @@ impl Shape {
              }
           });
    }
+
+   pub fn compile(&mut self, comp_data: &mut CompData) -> String {
+      let mut out = String::new();
+
+      out.push_str("{\n");
+
+      out.push_str(format!(r#"
+      {};
+      Hit name = Hit(
+            {}({} *
+
+      )
+
+      "#, self.transform.compile(&"PlaceholderTrans".to_string(), comp_data), self.current_shape.compile_name(), "PlaceholderTrans", ).as_str());
+
+      out.push_str("}\n");
+
+      out
+   }
 }
 
 
@@ -540,8 +559,8 @@ impl Transform {
           });
    }
 
-   pub fn compile(&self, st: &String) -> String {
-      return format!("vec3 {st} = move({st}, {}", self.position.compile())
+   pub fn compile(&self, st: &String, comp_data: &mut CompData) -> String {
+      return format!("vec3 {st} = move({st}, {}", self.position.compile(comp_data))
    }
 }
 
@@ -711,7 +730,7 @@ impl Float {
 
    }
 
-   pub fn compile(&self) -> String {
+   pub fn compile(&self, comp_data: &mut CompData) -> String {
       return format!("{}", self.val)
    }
 }
@@ -762,7 +781,7 @@ impl V3 {
       self.x.val = col[0]; self.y.val = col[1]; self.z.val = col[2];
    }
 
-   pub fn compile(&self) -> String {
-      return format!("vec3({}, {}, {})", self.x.compile(), self.y.compile(), self.z.compile())
+   pub fn compile(&self, comp_data: &mut CompData) -> String {
+      return format!("vec3({}, {}, {})", self.x.compile(comp_data), self.y.compile(comp_data), self.z.compile(comp_data))
    }
 }
