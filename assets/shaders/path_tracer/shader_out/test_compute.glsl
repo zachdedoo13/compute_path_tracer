@@ -131,100 +131,75 @@ Hit opUnion(Hit v1, Hit v2) {
     return v1.d < v2.d ? v1 : v2;
 }
 // end include
-// included override "assets/shaders/path_tracer\\map"
-Hit map(vec3 pos) { 
-Hit[8] shapes;
-vec3 tr;
+// included "assets/shaders/path_tracer\\map.glsl"
+//Hit map(vec3 pos) {
+//    Hit[2] shapes;
+//    vec3 tr;
+//
+//    tr = pos;
+//    tr = move(tr, vec3(2.46, 0.35, 0));
+//    //rot
+//    shapes[0] = Hit(
+//    sdCube(tr * 1, vec3(1, 1, 1)) / 1,
+//
+//    Mat(vec3(1, 1, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
+//
+//    );
+//
+//    tr = pos;
+//    //pos
+//    //rot
+//    shapes[1] = Hit(
+//    sdSphere(tr * 1, 1) / 1,
+//
+//    Mat(vec3(1, 1, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
+//
+//    );
+//
+//    Hit back = shapes[0];
+//    for (int i = 1; i < 2; i ++) {
+//        back = opUnion(back, shapes[i]);
+//    }
+//
+//    return back;
+//}
 
-      tr = pos;
-      tr = move(tr, vec3(0, -2.32, 0));
-      //rot
-      shapes[0] = Hit(
-         sdCube(tr * 1, vec3(11.63, 1, 12.26)) / 1,
-         
-         Mat(vec3(0, 0.6313726, 1), vec3(0, 0, 0), 0.75, vec3(0.50980395, 0.53333336, 1), 0.2, 0, 0, 0.015, vec3(0.4509804, 0, 0))
-      
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(0, 3.25, 0));
-      //rot
-      shapes[1] = Hit(
-         sdCube(tr * 1, vec3(11.63, 1, 12.26)) / 1,
-         
-         Mat(vec3(0, 0.2509804, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0, 0, 0.003, 0.015, vec3(0.4509804, 0, 0))
-      
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(0, 3.23, 1.85));
-      //rot
-      shapes[2] = Hit(
-         sdCube(tr * 1, vec3(1, 1, 2)) / 1,
-         
-         Mat(vec3(0, 0, 0), vec3(1.2, 1.2, 1.2), 0, vec3(0, 0, 0), 0, 0, 0, 0, vec3(0, 0, 0))
-      
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(0, 3.25, 3.75));
-      tr = rot3D(tr, vec3(1.4, 0, 0));
-      shapes[3] = Hit(
-         sdCube(tr * 1, vec3(11.63, 1, 12.26)) / 1,
-         
-         Mat(vec3(1, 0, 0), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0, 0, 0, 0, vec3(0, 0, 0))
-      
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(0, -0.06, 1.8));
-      tr = rot3D(tr, vec3(1.61, 2.82, 1.87));
-      shapes[4] = Hit(
-         sdOctahedronExact(tr * 1, 1) / 1,
-         
-         Mat(vec3(0, 0, 0), vec3(0, 0, 0), 1, vec3(1, 1, 1), 0.555, 0, 0, 0, vec3(0, 0, 0))
-      
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(-0.05, -0.2, 1.8));
-      tr = rot3D(tr, vec3(1.7, 1.8, 2.68));
-      shapes[5] = Hit(
-         sdOctahedronExact(tr * 1, 1) / 1,
-         
-         Mat(vec3(0, 0, 0), vec3(0, 0, 0), 1, vec3(1, 1, 1), 0.555, 0, 0, 0, vec3(0, 0, 0))
-      
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(3, 0, 2.1));
-      tr = rot3D(tr, vec3(0, -0.22, 0));
-      shapes[6] = Hit(
-         sdCube(tr * 1, vec3(1, 1.15, 7.2)) / 1,
-         
-         Mat(vec3(0, 0, 0), vec3(0, 0, 0), 0.5, vec3(1, 1, 1), 0, 0, 0, 0, vec3(0, 0, 0))
-      
-      );
-      
-      tr = pos;
-      tr = move(tr, vec3(-3, 0, 2.1));
-      tr = rot3D(tr, vec3(0, 0.22, 0));
-      shapes[7] = Hit(
-         sdCube(tr * 1, vec3(1, 1.15, 7.2)) / 1,
-         
-         Mat(vec3(0, 0, 0), vec3(0, 0, 0), 0.5, vec3(1, 1, 1), 0, 0, 0, 0, vec3(0, 0, 0))
-      
-      );
-      
-      Hit back = Hit(10000.0, MDEF);
-      for (int i = 0; i < 8; i ++) {
-         back = opUnion(back, shapes[i]);
-      }
+#define MAXHIT Hit(10000.0, MDEF)
 
-      return back;
-   }
+Hit map(vec3 pu0) {
+    // top level is allways min union
+    Hit u0 = MAXHIT;
 
-      
+        Hit u1 = MAXHIT;
+            // first union transform
+            vec3 pu1 = move(pu0, vec3(0.0));
+
+            Hit u2 = MAXHIT;
+                // second union transform
+                vec3 pu2 = move(pu1, vec3(0.0));
+
+                Hit u2s1 = Hit(
+                    sdCube(move(pu2, vec3(1.0)) * 1, vec3(1, 1, 1)) / 1,
+                    MDEF
+                );
+                u2 = opUnion(u2, u2s1);
+
+            u1 = opUnion(u1, u2);
+
+    u0 = opUnion(u0, u1);
+
+
+    Hit u0s1 = Hit(
+        sdSphere(move(pu0, vec3(0.0)) * 1, 0.5) / 1,
+        MDEF
+    );
+    u0 = opUnion(u0, u0s1);
+
+    return u0;
+}
+
+// unused due to overide
+
 // end include
 // included "assets/shaders/path_tracer\\funcs.glsl"
 vec2 calc_uv(vec2 gl_uv, ivec2 dimentions) {

@@ -111,11 +111,6 @@ impl<'a> State<'a> {
       if self.input_manager.is_key_just_pressed(KeyCode::Space) {self.path_tracer.remake_pipeline(&self.setup, self.node_editor.generate_map())}
 
 
-      if self.input_manager.is_key_just_pressed(KeyCode::KeyS) {
-         self.save_image();
-      }
-
-
       self.sdf_editor.update();
 
 
@@ -222,7 +217,7 @@ impl<'a> State<'a> {
       });
 
       {
-         // self.path_tracer.compute_pass(&mut encoder, &self.render_texture);
+         self.path_tracer.compute_pass(&mut encoder, &self.render_texture);
          self.render_texture_pipeline.render_pass(&mut encoder, &view, &self.render_texture);
       }
 

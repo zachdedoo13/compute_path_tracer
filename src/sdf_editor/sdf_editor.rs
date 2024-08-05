@@ -1,13 +1,18 @@
 use std::cmp::PartialEq;
-use std::ops::{RangeInclusive};
+use std::fmt::format;
+use std::fs;
+use std::ops::{Add, RangeInclusive};
 use std::time::Instant;
-use egui::{Color32, ComboBox, Context, DragValue, Frame, Label, menu, ScrollArea, Style, Ui, Window};
+use egui::{Color32, ComboBox, Context, DragValue, Frame, Label, menu, ScrollArea, Style, TextEdit, Ui, Window};
 use rand::{random, Rng};
 use serde::{Deserialize, Serialize};
+use serde_json::{from_str, to_string_pretty};
 
 const S1: f32 = 0.001;
 const S2: f32 = 0.01;
 const S3: f32 = 0.1;
+
+const MAP_PATH: &str = "data/maps/";
 
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -15,9 +20,16 @@ pub struct SDFEditor {
    header_unions: Vec<Union>,
    header_shapes: Vec<Shape>,
    rec_update: RecUpdate,
+
+   save_name: String,
 }
 impl SDFEditor {
    pub fn new() -> Self {
+
+      // init folders this struct uses
+      fs::create_dir_all(MAP_PATH).expect("Failed to create dir");
+
+
       let header_unions = vec![Union::new()];
       let header_shapes = vec![Shape::new()];
 
@@ -25,6 +37,8 @@ impl SDFEditor {
          header_unions,
          header_shapes,
          rec_update: RecUpdate::set_true(),
+
+         save_name: String::new(),
       }
    }
 
@@ -66,14 +80,25 @@ impl SDFEditor {
    fn menubar(&mut self, ui: &mut Ui) {
       menu::bar(ui, |ui| {
          ui.menu_button("File", |ui| {
-            if ui.button("Open").clicked() {
-               println!("Clicked Open");
-            }
-         });
+            ui.menu_button("Open", |ui| {
+               self.open_ui(ui);
+            });
 
-         ui.menu_button("Test", |ui| {
-            if ui.button("Test Button").clicked() {
-               println!("Test Button");
+            ui.menu_button("Save", |ui| {
+               ui.add(TextEdit::singleline(&mut self.save_name)
+                   .hint_text("Save name")
+                   .desired_width(75.0)
+               );
+               if ui.button("Save as").clicked() {
+                  self.save(&self.save_name);
+               }
+            });
+
+            if ui.button("Force compile").clicked() {
+               self.rec_update.compile();
+            }
+            if ui.button("Force update").clicked() {
+               self.rec_update.update();
             }
          });
 
@@ -92,19 +117,20 @@ impl SDFEditor {
    }
 
    fn editor_contents(&mut self, ui: &mut Ui) {
+      let mut i = 0;
       // unions
       let mut exucute = None;
-      for (i, union) in self.header_unions.iter_mut().enumerate() {
+      for (temp_i, union) in self.header_unions.iter_mut().enumerate() {
          ui.push_id(i, |ui| {
             ui.horizontal(|ui| {
                union.ui(ui, &mut self.rec_update);
 
                if ui.button("Delete").clicked() {
-                  exucute = Some(i);
+                  exucute = Some(temp_i);
                }
-
             });
          });
+         i += 1;
       }
       if let Some(index) = exucute {
          self.header_unions.remove(index);
@@ -113,18 +139,18 @@ impl SDFEditor {
 
       // shapes
       let mut exucute = None;
-      for (i, shape) in self.header_shapes.iter_mut().enumerate() {
+      for (temp_i, shape) in self.header_shapes.iter_mut().enumerate()  {
          ui.push_id(i, |ui| {
             ui.horizontal(|ui| {
 
                shape.ui(ui, &mut self.rec_update);
 
                if ui.button("Delete").clicked() {
-                  exucute = Some(i);
+                  exucute = Some(temp_i);
                }
-
             });
          });
+         i += 1;
       }
       if let Some(index) = exucute {
          self.header_shapes.remove(index);
@@ -132,17 +158,71 @@ impl SDFEditor {
       }
    }
 
+   fn save(&self, name: &String) {
+      println!("Saving as {name}");
+      let file_name = format!("{name}.json");
+      let path = format!("{MAP_PATH}{file_name}");
+
+      let serialized = to_string_pretty(self).unwrap();
+
+      fs::write(&path, serialized).expect(format!("Failed to write to {path}").as_str());
+   }
+
+   fn open_ui(&mut self, ui: &mut Ui) {
+      let files = fs::read_dir(MAP_PATH).expect("Failed to read map path");
+
+      files.for_each(|entry| {
+         let file = entry.expect("Invalid entry");
+         let name = file.file_name().into_string().unwrap();
+
+         if ui.button(&name).clicked() {
+            self.open(&name);
+         }
+      });
+   }
+
+   fn open(&mut self, name: &String) {
+      let contents = fs::read_to_string(format!("{MAP_PATH}{name}")).expect("Failed to read file");
+      let deserialize: SDFEditor = from_str(&contents).expect("Failed to deserialize");
+
+      *self = deserialize;
+   }
+
 
 
    // compiler functions
    pub fn compile(&mut self) -> String {
       let st = Instant::now();
-
       println!("Compiling {}", char::from(random::<u8>().to_ascii_uppercase()) );
 
-      std::thread::sleep(std::time::Duration::from_millis(250));
+      let mut comp_data = CompData { union_index: 0, union_depth: 0 };
+
+      let mut out = String::new();
+
+      out.push_str(r#"
+      #define MAXHIT Hit(10000.0, MDEF)
+
+      Hit map(vec3 pu0) {
+
+      "#);
+
+
+      for union in self.header_unions.iter() {
+         out.push_str(union.compile(&mut comp_data).as_str());
+      }
+
+
+
+
+
+
+
+
+
 
       println!("Compiled in {:?}", st.elapsed());
+
+      println!("{out}");
       String::new()
    }
 
@@ -155,7 +235,35 @@ impl SDFEditor {
       println!("Updated in {:?}", st.elapsed());
       vec![]
    }
+}
 
+struct CompData {
+   union_index: u32,
+   union_depth: u32,
+}
+impl CompData {
+   pub fn new() -> Self {
+      Self {
+         union_index: 0,
+         union_depth: 0,
+      }
+   }
+
+   pub fn add_union(&mut self) {
+      self.union_index += 1;
+   }
+
+   pub fn init_union(&mut self) -> String {
+      format!("Hit u{} = MAXHIT", self.union_index)
+   }
+
+   pub fn get_union(&self) -> String {
+      format!("u{}", self.union_index)
+   }
+
+   pub fn get_transform(&self) -> String {
+      format!("pu{}", self.union_index)
+   }
 }
 
 
@@ -164,22 +272,20 @@ impl SDFEditor {
 ///////////
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Union {
+   name: String,
    transform: Transform,
 
    children_unions: Vec<Union>,
    children_shapes: Vec<Shape>,
-
-   rec_update: RecUpdate,
 }
 impl Union {
    pub fn new() -> Self {
       Self {
+         name: "Union".to_string(),
          transform: Transform::new(),
 
          children_unions: vec![],
          children_shapes: vec![],
-
-         rec_update: RecUpdate::set_false(),
       }
    }
 
@@ -188,7 +294,8 @@ impl Union {
           .fill(Color32::from_rgb(50, 0, 0));
 
       frame.show(ui, |ui| {
-         egui::CollapsingHeader::new(format!("Union : {}", "Name"))
+         egui::CollapsingHeader::new(format!("{}", self.name))
+             .id_source(1)
              .show(ui, |ui| {
                 self.contents(ui, rec_update);
              });
@@ -198,6 +305,11 @@ impl Union {
    fn contents(&mut self, ui: &mut Ui, rec_update: &mut RecUpdate) {
       egui::CollapsingHeader::new("Settings")
           .show(ui, |ui| {
+
+             ui.add(TextEdit::singleline(&mut self.name)
+                 .hint_text("Enter name")
+                 .desired_width(75.0)
+             );
 
              egui::CollapsingHeader::new("Bounding Area")
                  .show(ui, |ui| {
@@ -229,21 +341,20 @@ impl Union {
          }
       });
 
-
+      let mut i = 0;
       // unions
       let mut exucute = None;
-      for (i, union) in self.children_unions.iter_mut().enumerate() {
+      for union in self.children_unions.iter_mut() {
          ui.push_id(i, |ui| {
             ui.horizontal(|ui| {
-
                union.ui(ui, rec_update);
 
                if ui.button("Delete").clicked() {
                   exucute = Some(i);
                }
-
             });
          });
+         i += 1;
       }
       if let Some(index) = exucute {
          self.children_unions.remove(index);
@@ -252,7 +363,7 @@ impl Union {
 
       // shapes
       let mut exucute = None;
-      for (i, shape) in self.children_shapes.iter_mut().enumerate() {
+      for shape in self.children_shapes.iter_mut() {
          ui.push_id(i, |ui| {
             ui.horizontal(|ui| {
 
@@ -261,9 +372,9 @@ impl Union {
                if ui.button("Delete").clicked() {
                   exucute = Some(i);
                }
-
             });
          });
+         i += 1;
       }
       if let Some(index) = exucute {
          self.children_shapes.remove(index);
@@ -271,6 +382,19 @@ impl Union {
       }
 
 
+   }
+
+   fn compile(&self, comp_data: &mut CompData) -> String {
+      let mut out = String::new();
+      comp_data.add_union();
+
+      out.push_str(format!("{}\n", comp_data.init_union().as_str()).as_str());
+
+      out.push_str(format!("{}", self.transform.compile(&comp_data.get_transform())).as_str());
+
+
+
+      out
    }
 }
 
@@ -312,6 +436,7 @@ pub struct Shape {
    transform: Transform,
    material: Material,
    current_shape: Shapes,
+   name: String,
 }
 
 impl Shape {
@@ -320,6 +445,7 @@ impl Shape {
          transform: Transform::new(),
          material: Material::new(),
          current_shape: Shapes::default(),
+         name: "Shape".to_string(),
       }
    }
 
@@ -328,8 +454,15 @@ impl Shape {
           .fill(Color32::from_rgb(0, 0, 50));
 
       frame.show(ui, |ui| {
-         egui::CollapsingHeader::new(format!("Shape : {}", "Name"))
+         egui::CollapsingHeader::new(format!("{}", self.name))
+             .id_source(1)
              .show(ui, |ui| {
+
+                ui.add(TextEdit::singleline(&mut self.name)
+                    .hint_text("Enter name")
+                    .desired_width(75.0)
+                );
+
                 self.contents(ui, rec_update);
              });
       });
@@ -405,6 +538,10 @@ impl Transform {
              self.rotation.separate_values(ui);
              self.scale.ui(ui);
           });
+   }
+
+   pub fn compile(&self, st: &String) -> String {
+      return format!("vec3 {st} = move({st}, {}", self.position.compile())
    }
 }
 
@@ -573,6 +710,10 @@ impl Float {
       );
 
    }
+
+   pub fn compile(&self) -> String {
+      return format!("{}", self.val)
+   }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -619,5 +760,9 @@ impl V3 {
       });
 
       self.x.val = col[0]; self.y.val = col[1]; self.z.val = col[2];
+   }
+
+   pub fn compile(&self) -> String {
+      return format!("vec3({}, {}, {})", self.x.compile(), self.y.compile(), self.z.compile())
    }
 }
