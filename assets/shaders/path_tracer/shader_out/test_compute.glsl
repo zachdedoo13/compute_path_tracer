@@ -18,6 +18,10 @@ layout(set = 2, binding = 0) uniform Settings {
     int aabb;
 } s;
 
+layout(set = 3, binding = 0) buffer DataBuffer {
+    float data[];
+};
+
 
 #define STEPS 80
 
@@ -144,6 +148,66 @@ vec3 pu1 = pu0;
  pu1 *= 1.0 / data[0];
  pu1 = move(pu1, vec3(data[1], data[2], data[3]) * (1.0 / data[0]));
  pu1 = rot3D(pu1, vec3(data[4], data[5], data[6]));
+{
+Hit u2 = MAXHIT; 
+vec3 pu2 = pu1;
+ pu2 *= 1.0 / data[7];
+ pu2 = move(pu2, vec3(data[8], data[9], data[10]) * (1.0 / data[7]));
+ pu2 = rot3D(pu2, vec3(data[11], data[12], data[13]));
+{
+
+      vec3 u2s0p = pu2;
+ u2s0p *= 1.0 / data[14];
+ u2s0p = move(u2s0p, vec3(data[15], data[16], data[17]) * (1.0 / data[14]));
+ u2s0p = rot3D(u2s0p, vec3(data[18], data[19], data[20]));
+
+      Hit u2s0 = Hit(
+         sdSphere(u2s0p, data[21]),
+         MDEF
+      );
+      u2s0.d /= 1.0 / data[14];
+
+      u2 = opUnion(u2, u2s0);
+
+
+      }
+{
+
+      vec3 u2s1p = pu2;
+ u2s1p *= 1.0 / data[33];
+ u2s1p = move(u2s1p, vec3(data[34], data[35], data[36]) * (1.0 / data[33]));
+ u2s1p = rot3D(u2s1p, vec3(data[37], data[38], data[39]));
+
+      Hit u2s1 = Hit(
+         sdCube(u2s1p, vec3(data[41], data[42], data[43])),
+         MDEF
+      );
+      u2s1.d /= 1.0 / data[33];
+
+      u2 = opUnion(u2, u2s1);
+
+
+      }
+u2.d /= 1.0 / data[7];
+u1 = opUnion(u1, u2);
+}
+{
+
+      vec3 u1s0p = pu1;
+ u1s0p *= 1.0 / data[22];
+ u1s0p = move(u1s0p, vec3(data[23], data[24], data[25]) * (1.0 / data[22]));
+ u1s0p = rot3D(u1s0p, vec3(data[26], data[27], data[28]));
+
+      Hit u1s0 = Hit(
+         sdCube(u1s0p, vec3(data[30], data[31], data[32])),
+         MDEF
+      );
+      u1s0.d /= 1.0 / data[22];
+
+      u1 = opUnion(u1, u1s0);
+
+
+      }
 u1.d /= 1.0 / data[0];
 start = opUnion(start, u1);
 }

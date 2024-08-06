@@ -4,6 +4,7 @@ use std::fs;
 use std::ops::{Add, RangeInclusive};
 use std::sync::atomic::AtomicU32;
 use std::time::Instant;
+use bytemuck::cast_slice;
 use egui::{Color32, ComboBox, Context, DragValue, Frame, Label, menu, ScrollArea, Style, TextEdit, Ui, Window};
 use rand::{random, Rng, SeedableRng};
 use rand::rngs::StdRng;
@@ -29,40 +30,36 @@ pub struct SDFEditor {
    header_shapes: Vec<Shape>,
    rec_update: RecUpdate,
 
-   comp_data: CompData,
-
    save_name: String,
 }
 impl SDFEditor {
-   pub fn new(setup: &Setup) -> Self {
+   pub fn new() -> Self {
 
       // init folders this struct uses
       fs::create_dir_all(MAP_PATH).expect("Failed to create dir");
 
 
       let header_unions = vec![Union::new()];
-      let header_shapes = vec![Shape::new()];
+      let header_shapes = vec![];
 
       Self {
          header_unions,
          header_shapes,
          rec_update: RecUpdate::set_true(),
 
-         comp_data: CompData::new()
-
          save_name: String::new(),
       }
    }
 
-   pub fn update(&mut self, path_tracer: &mut PathTracer, setup: &Setup, input_manager: &InputManager) {
-      if self.rec_update.queue_compile || self.rec_update.queue_update || input_manager.is_key_just_pressed(KeyCode::Space){
-         let map = self.compile();
+   pub fn update(&mut self, path_tracer: &mut PathTracer, setup: &Setup, input_manager: &InputManager, comp_data: &mut CompData) {
+      if self.rec_update.queue_compile || input_manager.is_key_just_pressed(KeyCode::Space){
+         let map = self.compile(comp_data);
 
          path_tracer.remake_pipeline(setup, map);
       }
 
       if self.rec_update.queue_update {
-         let data = self.data_update();
+         let data = self.data_update(comp_data);
       }
 
 
@@ -206,9 +203,8 @@ impl SDFEditor {
 
 
    // compiler functions
-   pub fn compile(&mut self) -> String {
+   pub fn compile(&mut self, comp_data: &mut CompData) -> String {
       let st = Instant::now();
-      println!("Compiling {}", char::from(random::<u8>().to_ascii_uppercase()) );
 
       let mut out = String::new();
 
@@ -222,7 +218,7 @@ impl SDFEditor {
 
 
       for union in self.header_unions.iter() {
-         out.push_str(union.compile(&mut comp_data, &"start".to_string()).as_str());
+         out.push_str(union.compile(comp_data, &"start".to_string(), 0).as_str());
          comp_data.union_depth = 0;
       }
 
@@ -245,24 +241,56 @@ impl SDFEditor {
       out
    }
 
-   pub fn data_update(&mut self) -> Vec<f32> {
+   pub fn data_update(&mut self, comp_data: &mut CompData) -> Vec<f32> {
       let st = Instant::now();
 
-      println!("Updating {}", char::from(random::<u8>().to_ascii_uppercase()) );
-
-      println!("Updated in {:?}", st.elapsed());
+      for union in self.header_unions.iter() {
+         union.refresh(comp_data)
+      }
       vec![]
    }
 }
 
-struct CompData {
-   union_index: u32,
-   union_depth: u32,
 
-   current_union: u32,
-   current_shape: u32,
+pub struct SDFEditorPackage {
+   pub sdfeditor: SDFEditor,
+   pub comp_data: CompData,
+}
+impl SDFEditorPackage {
+   pub fn new(setup: &Setup) -> Self {
+      Self {
+         sdfeditor: SDFEditor::new(),
+         comp_data: CompData::new(setup),
+      }
+   }
 
-   data_array: DataArray,
+   pub fn ui(&mut self, context: &Context) {
+      self.sdfeditor.ui(context)
+   }
+
+   pub fn update(&mut self, path_tracer: &mut PathTracer, setup: &Setup, input_manager: &InputManager) {
+
+      if self.sdfeditor.rec_update.queue_update | self.sdfeditor.rec_update.queue_compile  {
+         self.sdfeditor.update(path_tracer, setup, input_manager, &mut self.comp_data);
+         self.comp_data.data_array.update(setup);
+      } else {
+         self.sdfeditor.update(path_tracer, setup, input_manager, &mut self.comp_data);
+      }
+
+
+   }
+}
+
+
+
+pub struct CompData {
+   pub union_index: u32,
+   pub union_depth: u32,
+
+   pub current_union: u32,
+   pub current_shape: u32,
+
+   pub data_array: DataArray,
 
 }
 impl CompData {
@@ -296,14 +324,14 @@ pub fn gen_hash() -> u128 {
 }
 
 
-struct DataArray {
-   data: Vec<f32>,
-   counter: u32,
-   seen: HashMap<u128, usize>,
+pub struct DataArray {
+   pub data: Vec<f32>,
+   pub counter: u32,
+   pub seen: HashMap<u128, usize>,
 
-   bind_group_layout: BindGroupLayout,
-   bind_group: BindGroup,
-   buffer: Buffer,
+   pub bind_group_layout: BindGroupLayout,
+   pub bind_group: BindGroup,
+   pub buffer: Buffer,
 }
 impl DataArray {
    pub fn new(setup: &Setup) -> Self {
@@ -317,7 +345,7 @@ impl DataArray {
                binding: 0,
                visibility: ShaderStages::COMPUTE,
                ty: BindingType::Buffer {
-                  ty: BufferBindingType::Storage { read_only: true },
+                  ty: BufferBindingType::Storage { read_only: false },
                   has_dynamic_offset: false,
                   min_binding_size: None,
                },
@@ -328,7 +356,7 @@ impl DataArray {
 
       let buffer = setup.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
          label: Some("Data Buffer"),
-         contents: bytemuck::cast_slice(&data),
+         contents: cast_slice(&data),
          usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
       });
 
@@ -369,6 +397,33 @@ impl DataArray {
 
          format!("data[{i}]")
       }
+   }
+
+   pub fn update(&mut self, setup: &Setup) {
+      // Recreate the buffer with the updated data size
+      self.buffer = setup.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+         label: Some("Updated Data Buffer"),
+         contents: cast_slice(&self.data),
+         usage: wgpu::BufferUsages::STORAGE | wgpu::BufferUsages::COPY_DST,
+      });
+
+      // Update the bind group to use the new buffer
+      self.bind_group = setup.device.create_bind_group(&wgpu::BindGroupDescriptor {
+         layout: &self.bind_group_layout,
+         entries: &[
+            wgpu::BindGroupEntry {
+               binding: 0,
+               resource: self.buffer.as_entire_binding(),
+            },
+         ],
+         label: Some("Updated Data Bind Group"),
+      });
+
+   }
+
+   pub fn refresh(&mut self, hash: u128, data: f32) {
+      let entry = self.seen.get(&hash).expect("Something fucked up");
+      self.data[*entry] = data;
    }
 }
 
@@ -490,23 +545,26 @@ impl Union {
 
    }
 
-   fn compile(&self, comp_data: &mut CompData, reference: &String) -> String {
+   fn compile(&self, comp_data: &mut CompData, reference: &String, in_union_depth: u32) -> String {
       let mut out = String::new();
 
-      comp_data.union_depth += 1;
-
-      let union_depth = comp_data.union_depth;
+      let union_depth = in_union_depth + 1;
 
       out.push_str("{\n");
 
       out.push_str(format!("Hit u{union_depth} = MAXHIT; \n").as_str());
-      out.push_str(format!("{}\n", self.transform.compile(&format!("pu{union_depth}"), comp_data, &format!("pu{}", comp_data.union_depth - 1))).as_str());
+      out.push_str(format!("{}\n", self.transform.compile(&format!("pu{union_depth}"), comp_data, &format!("pu{}", union_depth - 1))).as_str());
 
-      for shape in self.children_shapes.iter() {
-         out.push_str(shape.compile(comp_data).as_str());
-         comp_data.current_shape += 1;
+      for union in self.children_unions.iter() {
+         out.push_str(union.compile(comp_data, &format!("u{union_depth}"), union_depth).as_str());
       }
-      comp_data.current_shape += 0;
+
+      let mut shape_index = 0;
+      for shape in self.children_shapes.iter() {
+         out.push_str(shape.compile(comp_data, union_depth, shape_index).as_str());
+         shape_index += 1;
+      }
+      comp_data.current_shape = 0;
 
       out.push_str(format!("{}\n", self.transform.finalise_scale(&format!("u{union_depth}"), comp_data)).as_str());
       out.push_str(format!("{reference} = opUnion({reference}, u{union_depth});\n").as_str());
@@ -514,6 +572,16 @@ impl Union {
       out.push_str("}\n");
 
       out
+   }
+
+   fn refresh(&self, comp_data: &mut CompData) {
+      self.transform.refresh(comp_data);
+      for child in self.children_shapes.iter() {
+         child.refresh(comp_data);
+      }
+      for union in self.children_unions.iter() {
+         union.refresh(comp_data);
+      }
    }
 }
 
@@ -556,6 +624,14 @@ impl Shapes {
          Shapes::Sphere(size) => { format!("{}", size.compile(comp_data)) }
          Shapes::Cube(xyz) => { format!("{}", xyz.compile(comp_data)) }
          Shapes::Plane => { "NotImplemented".to_string() }
+      }
+   }
+
+   fn refresh(&self, comp_data: &mut CompData) {
+      match self {
+         Shapes::Sphere(data) => { data.refresh(comp_data); }
+         Shapes::Cube(data) => { data.refresh(comp_data); }
+         Shapes::Plane => {}
       }
    }
 }
@@ -647,16 +723,16 @@ impl Shape {
           });
    }
 
-   pub fn compile(&self, comp_data: &mut CompData) -> String {
+   pub fn compile(&self, comp_data: &mut CompData, union_depth: u32, current_shape: u32) -> String {
       let mut out = String::new();
 
-      let ui = comp_data.union_depth; // union index
-      let si = comp_data.current_shape; // shape index
+      let ui = union_depth; // union index
+      let si = current_shape; // shape index
 
       let shape_name = self.current_shape.compile_name();
 
       let transform_name = format!("u{ui}s{si}p");
-      let transform_code = self.transform.compile(&transform_name, comp_data, &format!("pu{}", comp_data.union_depth));
+      let transform_code = self.transform.compile(&transform_name, comp_data, &format!("pu{}", union_depth));
 
       let shape_settings = self.current_shape.compile_settings(comp_data);
 
@@ -679,6 +755,12 @@ impl Shape {
       out.push_str("}\n");
 
       out
+   }
+
+   fn refresh(&self, comp_data: &mut CompData) {
+      self.transform.refresh(comp_data);
+
+      self.current_shape.refresh(comp_data);
    }
 }
 
@@ -723,6 +805,12 @@ impl Transform {
 
    pub fn finalise_scale(&self, st: &String, comp_data: &mut CompData) -> String {
       format!("{st}.d /= 1.0 / {};", self.scale.compile(comp_data))
+   }
+
+   pub fn refresh(&self, comp_data: &mut CompData) {
+      self.position.refresh(comp_data);
+      self.rotation.refresh(comp_data);
+      self.scale.refresh(comp_data);
    }
 }
 
@@ -908,6 +996,10 @@ impl Float {
 
       return format!("{}", index)
    }
+
+   pub fn refresh(&self, comp_data: &mut CompData) {
+      comp_data.data_array.refresh(self.hash, self.val);
+   }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -958,5 +1050,11 @@ impl V3 {
 
    pub fn compile(&self, comp_data: &mut CompData) -> String {
       return format!("vec3({}, {}, {})", self.x.compile(comp_data), self.y.compile(comp_data), self.z.compile(comp_data))
+   }
+
+   pub fn refresh(&self, comp_data: &mut CompData) {
+      self.x.refresh(comp_data);
+      self.y.refresh(comp_data);
+      self.z.refresh(comp_data);
    }
 }

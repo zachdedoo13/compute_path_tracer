@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::Instant;
 use cgmath::Vector2;
 use egui::Ui;
-use wgpu::{CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, PipelineLayout, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
+use wgpu::{BindGroup, BindGroupLayout, BindGroupLayoutEntry, CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, PipelineLayout, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
 use wgpu::naga::{FastHashMap, ShaderStage};
 use winit::keyboard::KeyCode;
 use crate::{defaults_and_sliders_gui, defaults_only_gui};
@@ -25,7 +25,7 @@ pub struct PathTracer {
 }
 
 impl PathTracer {
-   pub fn new(setup: &Setup, storage_texture_package: &StorageTexturePackage, map: String) -> Self {
+   pub fn new(setup: &Setup, storage_texture_package: &StorageTexturePackage, map: String, data_array_layout: &BindGroupLayout) -> Self {
 
       let constants = UniformPackageSingles::create(&setup, ShaderStages::COMPUTE, Constants::default());
       let settings = UniformPackageSingles::create(&setup, ShaderStages::COMPUTE, Settings::default());
@@ -38,6 +38,7 @@ impl PathTracer {
             &storage_texture_package.bind_group_layout,
             &constants.layout,
             &settings.layout,
+            &data_array_layout,
          ],
          push_constant_ranges: &[],
       });
@@ -124,7 +125,7 @@ impl PathTracer {
       if sc != self.settings.data { self.changed = true;}
    }
 
-   pub fn compute_pass(&self, encoder: &mut CommandEncoder, render_texture: &StorageTexturePackage) {
+   pub fn compute_pass(&self, encoder: &mut CommandEncoder, render_texture: &StorageTexturePackage, data_array: &BindGroup) {
       let mut compute_pass = encoder.begin_compute_pass(&ComputePassDescriptor { label: Some("Compute pass"), timestamp_writes: None });
 
       compute_pass.set_pipeline(&self.pipeline);
@@ -134,6 +135,8 @@ impl PathTracer {
 
       compute_pass.set_bind_group(1, &self.constants.bind_group, &[]);
       compute_pass.set_bind_group(2, &self.settings.bind_group, &[]);
+
+      compute_pass.set_bind_group(3, data_array, &[]);
 
       let wg = 16;
       compute_pass.dispatch_workgroups(
@@ -153,7 +156,7 @@ defaults_only_gui!(
 
 defaults_and_sliders_gui!(
    Settings,
-   debug: i32 = 2 => 0..=3,
+   debug: i32 = 1 => 0..=3,
    bounces: i32 = 8 => 0..=16,
    scale: f32 = 1.0 => 0.1..=1.0,
    fov: f32 = 1.0 => 0.0..=5.0,

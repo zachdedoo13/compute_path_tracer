@@ -6,17 +6,14 @@ use pollster::block_on;
 use wgpu::{BufferUsages, CommandEncoder, ImageCopyBuffer, ImageCopyTexture, ImageDataLayout, TextureView, TextureViewDescriptor};
 use winit::dpi::PhysicalSize;
 use winit::event::WindowEvent;
-use winit::keyboard::KeyCode;
 use winit::window::Window;
 use crate::inbuilt::gui::EguiRenderer;
 use crate::inbuilt::setup::Setup;
 use crate::packages::input_manager_package::InputManager;
-use crate::packages::new_node_editor::NewNodeEditor;
-use crate::packages::node_editor_package::NodeEditor;
 use crate::packages::time_package::TimePackage;
 use crate::path_tracer::path_tracer::PathTracer;
 use crate::pipelines::render_texture_pipeline::RenderTexturePipeline;
-use crate::sdf_editor::sdf_editor::SDFEditor;
+use crate::sdf_editor::sdf_editor::{SDFEditor, SDFEditorPackage};
 use crate::utility::structs::StorageTexturePackage;
 
 
@@ -39,7 +36,7 @@ pub struct State<'a> {
 
    path_tracer: PathTracer,
 
-   sdf_editor: SDFEditor,
+   sdf_editor_package: SDFEditorPackage,
 }
 
 impl<'a> State<'a> {
@@ -49,7 +46,7 @@ impl<'a> State<'a> {
       let setup = Setup::new(window).await;
       let egui = EguiRenderer::new(&setup.device, setup.config.format, None, 1, setup.window);
 
-      let mut sdf_editor = SDFEditor::new();
+      let mut sdf_editor_package = SDFEditorPackage::new(&setup);
 
       // packages
       let time_package = TimePackage::new();
@@ -59,9 +56,7 @@ impl<'a> State<'a> {
       let render_texture = StorageTexturePackage::new(&setup, (10.0, 10.0));
       let render_texture_pipeline = RenderTexturePipeline::new(&setup, &render_texture);
 
-      let mut path_tracer = PathTracer::new(&setup, &render_texture, PLACEHOLDER_MAP.to_string());
-
-      sdf_editor.update(&mut path_tracer, &setup, &input_manager);
+      let mut path_tracer = PathTracer::new(&setup, &render_texture, PLACEHOLDER_MAP.to_string(), &sdf_editor_package.comp_data.data_array.bind_group_layout);
 
       Self {
          setup,
@@ -77,7 +72,7 @@ impl<'a> State<'a> {
 
          path_tracer,
          
-         sdf_editor,
+         sdf_editor_package,
       }
    }
 
@@ -103,7 +98,7 @@ impl<'a> State<'a> {
       self.path_tracer.update(&self.setup, &mut self.render_texture, &self.time_package, &self.input_manager, self.resized);
 
 
-      self.sdf_editor.update(&mut self.path_tracer, &self.setup, &self.input_manager);
+      self.sdf_editor_package.update(&mut self.path_tracer, &self.setup, &self.input_manager);
 
 
       self.input_manager.reset();
@@ -179,7 +174,7 @@ impl<'a> State<'a> {
              .frame(Frame::window(&Style::default()))
              .show(&context, code);
          
-         self.sdf_editor.ui(context);
+         self.sdf_editor_package.ui(context);
       };
 
       self.egui.draw(
@@ -203,7 +198,7 @@ impl<'a> State<'a> {
       });
 
       {
-         self.path_tracer.compute_pass(&mut encoder, &self.render_texture);
+         self.path_tracer.compute_pass(&mut encoder, &self.render_texture, &self.sdf_editor_package.comp_data.data_array.bind_group);
          self.render_texture_pipeline.render_pass(&mut encoder, &view, &self.render_texture);
       }
 

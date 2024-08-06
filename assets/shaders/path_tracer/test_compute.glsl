@@ -18,6 +18,10 @@ layout(set = 2, binding = 0) uniform Settings {
     int aabb;
 } s;
 
+layout(set = 3, binding = 0) buffer DataBuffer {
+    float data[];
+};
+
 
 #define STEPS 80
 
