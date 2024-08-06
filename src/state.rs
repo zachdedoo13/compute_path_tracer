@@ -19,6 +19,10 @@ use crate::pipelines::render_texture_pipeline::RenderTexturePipeline;
 use crate::sdf_editor::sdf_editor::SDFEditor;
 use crate::utility::structs::StorageTexturePackage;
 
+
+const PLACEHOLDER_MAP: &str = "\
+   #define MAXHIT Hit(10000.0, MDEF)\n
+   Hit map(vec3 pu0) { return MAXHIT; }";
 pub struct State<'a> {
    pub setup: Setup<'a>,
    pub egui: EguiRenderer,
@@ -34,9 +38,6 @@ pub struct State<'a> {
    render_texture_pipeline: RenderTexturePipeline,
 
    path_tracer: PathTracer,
-   node_editor: NodeEditor,
-
-   new_node_editor: NewNodeEditor,
 
    sdf_editor: SDFEditor,
 }
@@ -48,11 +49,7 @@ impl<'a> State<'a> {
       let setup = Setup::new(window).await;
       let egui = EguiRenderer::new(&setup.device, setup.config.format, None, 1, setup.window);
 
-
-      let mut node_editor = NodeEditor::new();
-      let mut new_node_editor = NewNodeEditor::new();
-
-      let sdf_editor = SDFEditor::new();
+      let mut sdf_editor = SDFEditor::new();
 
       // packages
       let time_package = TimePackage::new();
@@ -62,9 +59,9 @@ impl<'a> State<'a> {
       let render_texture = StorageTexturePackage::new(&setup, (10.0, 10.0));
       let render_texture_pipeline = RenderTexturePipeline::new(&setup, &render_texture);
 
-      let path_tracer = PathTracer::new(&setup, &render_texture, node_editor.generate_map());
+      let mut path_tracer = PathTracer::new(&setup, &render_texture, PLACEHOLDER_MAP.to_string());
 
-
+      sdf_editor.update(&mut path_tracer, &setup, &input_manager);
 
       Self {
          setup,
@@ -79,9 +76,6 @@ impl<'a> State<'a> {
          render_texture_pipeline,
 
          path_tracer,
-
-         node_editor,
-         new_node_editor,
          
          sdf_editor,
       }
@@ -108,10 +102,8 @@ impl<'a> State<'a> {
 
       self.path_tracer.update(&self.setup, &mut self.render_texture, &self.time_package, &self.input_manager, self.resized);
 
-      if self.input_manager.is_key_just_pressed(KeyCode::Space) {self.path_tracer.remake_pipeline(&self.setup, self.node_editor.generate_map())}
 
-
-      self.sdf_editor.update();
+      self.sdf_editor.update(&mut self.path_tracer, &self.setup, &self.input_manager);
 
 
       self.input_manager.reset();
@@ -186,12 +178,6 @@ impl<'a> State<'a> {
              .anchor(Align2::LEFT_TOP, [0.0, 0.0])
              .frame(Frame::window(&Style::default()))
              .show(&context, code);
-
-         if self.editor_open {
-            self.node_editor.ui(context, &mut self.path_tracer, &self.input_manager, &self.setup, &mut self.resized);
-         }
-
-         self.new_node_editor.ui(context);
          
          self.sdf_editor.ui(context);
       };
