@@ -53,13 +53,13 @@ impl SDFEditor {
 
    pub fn update(&mut self, path_tracer: &mut PathTracer, setup: &Setup, input_manager: &InputManager, comp_data: &mut CompData) {
       if self.rec_update.queue_compile || input_manager.is_key_just_pressed(KeyCode::Space){
+         comp_data.reset_data_array();
          let map = self.compile(comp_data);
-
          path_tracer.remake_pipeline(setup, map);
       }
 
       if self.rec_update.queue_update {
-         let data = self.data_update(comp_data);
+         self.data_update(comp_data);
       }
 
 
@@ -269,7 +269,6 @@ impl SDFEditorPackage {
    }
 
    pub fn update(&mut self, path_tracer: &mut PathTracer, setup: &Setup, input_manager: &InputManager) {
-
       if self.sdfeditor.rec_update.queue_update | self.sdfeditor.rec_update.queue_compile  {
          self.sdfeditor.update(path_tracer, setup, input_manager, &mut self.comp_data);
          self.comp_data.data_array.update(setup);
@@ -305,6 +304,11 @@ impl CompData {
 
          data_array: DataArray::new(setup),
       }
+   }
+
+   pub fn reset_data_array(&mut self) {
+      self.data_array.data.clear();
+      self.data_array.seen.clear();
    }
 
    pub fn inc_union(&mut self) {
@@ -419,6 +423,7 @@ impl DataArray {
          label: Some("Updated Data Bind Group"),
       });
 
+      println!("{:?}", self.data)
    }
 
    pub fn refresh(&mut self, hash: u128, data: f32) {
