@@ -13,13 +13,15 @@ use crate::packages::input_manager_package::InputManager;
 use crate::packages::time_package::TimePackage;
 use crate::path_tracer::path_tracer::PathTracer;
 use crate::pipelines::render_texture_pipeline::RenderTexturePipeline;
-use crate::sdf_editor::sdf_editor::{SDFEditor, SDFEditorPackage};
+use crate::sdf_editor::sdf_editor::SDFEditorPackage;
 use crate::utility::structs::StorageTexturePackage;
 
 
 const PLACEHOLDER_MAP: &str = "\
    #define MAXHIT Hit(10000.0, MDEF)\n
    Hit map(vec3 pu0) { return MAXHIT; }";
+
+
 pub struct State<'a> {
    pub setup: Setup<'a>,
    pub egui: EguiRenderer,
@@ -98,7 +100,7 @@ impl<'a> State<'a> {
       self.path_tracer.update(&self.setup, &mut self.render_texture, &self.time_package, &self.input_manager, self.resized);
 
 
-      self.sdf_editor_package.update(&mut self.path_tracer, &self.setup, &self.input_manager);
+      self.sdf_editor_package.update(&mut self.path_tracer, &self.setup);
 
 
       self.input_manager.reset();
@@ -173,8 +175,11 @@ impl<'a> State<'a> {
              .anchor(Align2::LEFT_TOP, [0.0, 0.0])
              .frame(Frame::window(&Style::default()))
              .show(&context, code);
-         
-         self.sdf_editor_package.ui(context);
+
+         if self.editor_open {
+            self.sdf_editor_package.ui(context);
+         }
+
       };
 
       self.egui.draw(

@@ -142,7 +142,33 @@ Hit opUnion(Hit v1, Hit v2) {
       Hit map(vec3 pu0) {
          Hit start = MAXHIT;
 
-      
+      {
+Hit u1 = MAXHIT; 
+vec3 pu1 = pu0;
+ pu1 *= 1.0 / data[1];
+ pu1 = move(pu1, vec3(data[2], data[3], data[4]) * (1.0 / data[1]));
+ pu1 = rot3D(pu1, vec3(data[5], data[6], data[7]));
+{
+
+      vec3 u1s0p = pu1;
+ u1s0p *= 1.0 / data[8];
+ u1s0p = move(u1s0p, vec3(data[9], data[10], data[11]) * (1.0 / data[8]));
+ u1s0p = rot3D(u1s0p, vec3(data[12], data[13], data[14]));
+
+      Hit u1s0 = Hit(
+         sdSphere(u1s0p, data[15]),
+         MDEF
+      );
+      u1s0.d /= 1.0 / data[8];
+
+      u1 = opUnion(u1, u1s0);
+
+
+      }
+u1.d /= 1.0 / data[1];
+start = opUnion(start, u1);
+} //Union
+
          return start;
       }
 

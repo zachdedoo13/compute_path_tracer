@@ -33,4 +33,8 @@ pub mod utility {
 
 pub mod sdf_editor {
    pub mod sdf_editor;
+   // pub mod sdf_editor_old;
+   pub mod primitives;
+   pub mod data_structures;
+   pub mod containers;
 }
