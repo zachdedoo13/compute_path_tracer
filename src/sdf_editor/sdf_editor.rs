@@ -218,8 +218,6 @@ impl SDFEditor {
    }
 
    pub fn data_update(&mut self, comp_data: &mut CompData) -> Vec<f32> {
-      let st = Instant::now();
-
       for union in self.header_unions.iter() {
          union.refresh(comp_data)
       }

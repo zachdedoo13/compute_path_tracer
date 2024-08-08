@@ -78,20 +78,20 @@ impl Union {
 
       let mut i = 0;
       // unions
-      let mut exucute = None;
+      let mut execute = None;
       for (inner_i, union) in self.children_unions.iter_mut().enumerate() {
          ui.push_id(i, |ui| {
             ui.horizontal(|ui| {
                union.ui(ui, comp_data);
 
                if ui.button("Delete").clicked() {
-                  exucute = Some(inner_i);
+                  execute = Some(inner_i);
                }
             });
          });
          i += 1;
       }
-      if let Some(index) = exucute {
+      if let Some(index) = execute {
          self.children_unions.remove(index);
          comp_data.rec_update.both();
       }

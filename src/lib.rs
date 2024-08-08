@@ -14,8 +14,6 @@ pub mod inbuilt {
 }
 
 pub mod packages {
-   pub mod new_node_editor;
-   pub mod node_editor_package;
    pub mod glsl_preprocessor;
    pub mod time_package;
    pub mod input_manager_package;

@@ -140,8 +140,6 @@ impl DataArray {
          ],
          label: Some("Updated Data Bind Group"),
       });
-
-      println!("{:?}", self.data)
    }
 
    pub fn refresh(&mut self, hash: u128, data: f32) {
