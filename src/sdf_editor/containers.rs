@@ -98,6 +98,7 @@ impl Union {
 
       // shapes
       let mut exucute = None;
+      let mut dupe = None;
       for (inner_i, shape) in self.children_shapes.iter_mut().enumerate() {
          ui.push_id(i, |ui| {
             ui.horizontal(|ui| {
@@ -107,6 +108,10 @@ impl Union {
                if ui.button("Delete").clicked() {
                   exucute = Some(inner_i);
                }
+
+               if ui.button("Duplicate").clicked() {
+                  dupe = Some(shape.clone());
+               }
             });
          });
          i += 1;
@@ -115,8 +120,11 @@ impl Union {
          self.children_shapes.remove(index);
          comp_data.rec_update.both();
       }
-
-
+      if let Some(mut shape) = dupe {
+         shape.rehash();
+         self.children_shapes.push(shape);
+         comp_data.rec_update.both();
+      }
    }
 
 
@@ -214,6 +222,14 @@ impl Shapes {
       match self {
          Shapes::Sphere(data) => { data.refresh(comp_data); }
          Shapes::Cube(data) => { data.refresh(comp_data); }
+         Shapes::Plane => {}
+      }
+   }
+
+   fn rehash(&mut self) {
+      match self {
+         Shapes::Sphere(data) => { data.rehash(); }
+         Shapes::Cube(data) => { data.rehash(); }
          Shapes::Plane => {}
       }
    }
@@ -319,6 +335,8 @@ impl Shape {
 
       let shape_settings = self.current_shape.compile_settings(comp_data);
 
+      let material = self.material.compile(comp_data);
+
       out.push_str("{\n"); // todo bounds check
 
       out.push_str(format!(r#"
@@ -326,7 +344,7 @@ impl Shape {
 
       Hit u{ui}s{si} = Hit(
          {shape_name}({transform_name}, {shape_settings}),
-         MDEF
+         {material}
       );
       {}
 
@@ -342,7 +360,13 @@ impl Shape {
 
    fn refresh(&self, comp_data: &mut CompData) {
       self.transform.refresh(comp_data);
-
+      self.material.refresh(comp_data);
       self.current_shape.refresh(comp_data);
+   }
+
+   fn rehash(&mut self) {
+      self.transform.rehash();
+      self.material.rehash();
+      self.current_shape.rehash();
    }
 }

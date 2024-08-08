@@ -44,6 +44,8 @@ struct Ray {vec3 ro; vec3 rd; };
 
 struct Mat {
     vec3 col;
+
+    float brightness;
     vec3 light;
 
     float spec;
@@ -58,7 +60,7 @@ struct Mat {
 struct Hit {float d; Mat mat; };
 
 
-#define MDEF Mat(vec3(0.0), vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0, 0.0, vec3(0.0))
+#define MDEF Mat(vec3(0.0), 0.0, vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0, 0.0, vec3(0.0))
 
 
 #include "shapes.glsl"
@@ -67,7 +69,6 @@ struct Hit {float d; Mat mat; };
 #include "rng.glsl"
 
 
-#include "tester.glsl"
 
 
 Hit CastRay(Ray ray) {
@@ -80,8 +81,10 @@ Hit CastRay(Ray ray) {
         t += hit.d;
 
         if (abs(hit.d) < MHD) break;
-        if (t > FP) break;
+
+        if (t > FP) return Hit(t, MDEF);
     }
+
     return Hit(t, mat);
 }
 
@@ -146,7 +149,7 @@ vec3 path_trace(Ray start_ray, uint rng) {
                 }
             }
 
-            ret += hit.mat.light * throughput;
+            ret += (normalize(hit.mat.light) * hit.mat.brightness) * throughput;
             throughput *= mix(hit.mat.col, hit.mat.spec_col, float(do_spec));
 
             throughput /= ray_prob;
@@ -189,7 +192,8 @@ vec3 colors(Ray ray) {
 
 //    return test.mat.col;
 
-    return test_cast(ray);
+    return CastRay(ray).mat.col;
+    //return test_cast(ray);
 }
 
 

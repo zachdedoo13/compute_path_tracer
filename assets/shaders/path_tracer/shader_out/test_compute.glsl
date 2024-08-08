@@ -44,6 +44,8 @@ struct Ray {vec3 ro; vec3 rd; };
 
 struct Mat {
     vec3 col;
+
+    float brightness;
     vec3 light;
 
     float spec;
@@ -58,7 +60,7 @@ struct Mat {
 struct Hit {float d; Mat mat; };
 
 
-#define MDEF Mat(vec3(0.0), vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0, 0.0, vec3(0.0))
+#define MDEF Mat(vec3(0.0), 0.0, vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0, 0.0, vec3(0.0))
 
 
 // included "assets/shaders/path_tracer\\shapes.glsl"
@@ -156,8 +158,8 @@ vec3 pu1 = pu0;
  u1s0p = rot3D(u1s0p, vec3(data[12], data[13], data[14]));
 
       Hit u1s0 = Hit(
-         sdSphere(u1s0p, data[15]),
-         MDEF
+         sdCube(u1s0p, vec3(data[15], data[16], data[17])),
+         Mat(vec3(data[18], data[19], data[20]), data[21], vec3(data[22], data[23], data[24]), data[25], vec3(data[26], data[27], data[28]), data[29], data[30], data[31], data[32], vec3(data[33], data[34], data[35]))
       );
       u1s0.d /= 1.0 / data[8];
 
@@ -165,9 +167,137 @@ vec3 pu1 = pu0;
 
 
       }
+{
+
+      vec3 u1s1p = pu1;
+ u1s1p *= 1.0 / data[36];
+ u1s1p = move(u1s1p, vec3(data[37], data[38], data[39]) * (1.0 / data[36]));
+ u1s1p = rot3D(u1s1p, vec3(data[40], data[41], data[42]));
+
+      Hit u1s1 = Hit(
+         sdCube(u1s1p, vec3(data[43], data[44], data[45])),
+         Mat(vec3(data[46], data[47], data[48]), data[49], vec3(data[50], data[51], data[52]), data[53], vec3(data[54], data[55], data[56]), data[57], data[58], data[59], data[60], vec3(data[61], data[62], data[63]))
+      );
+      u1s1.d /= 1.0 / data[36];
+
+      u1 = opUnion(u1, u1s1);
+
+
+      }
+{
+
+      vec3 u1s2p = pu1;
+ u1s2p *= 1.0 / data[64];
+ u1s2p = move(u1s2p, vec3(data[65], data[66], data[67]) * (1.0 / data[64]));
+ u1s2p = rot3D(u1s2p, vec3(data[68], data[69], data[70]));
+
+      Hit u1s2 = Hit(
+         sdCube(u1s2p, vec3(data[71], data[72], data[73])),
+         Mat(vec3(data[74], data[75], data[76]), data[77], vec3(data[78], data[79], data[80]), data[81], vec3(data[82], data[83], data[84]), data[85], data[86], data[87], data[88], vec3(data[89], data[90], data[91]))
+      );
+      u1s2.d /= 1.0 / data[64];
+
+      u1 = opUnion(u1, u1s2);
+
+
+      }
+{
+
+      vec3 u1s3p = pu1;
+ u1s3p *= 1.0 / data[92];
+ u1s3p = move(u1s3p, vec3(data[93], data[94], data[95]) * (1.0 / data[92]));
+ u1s3p = rot3D(u1s3p, vec3(data[96], data[97], data[98]));
+
+      Hit u1s3 = Hit(
+         sdCube(u1s3p, vec3(data[99], data[100], data[101])),
+         Mat(vec3(data[102], data[103], data[104]), data[105], vec3(data[106], data[107], data[108]), data[109], vec3(data[110], data[111], data[112]), data[113], data[114], data[115], data[116], vec3(data[117], data[118], data[119]))
+      );
+      u1s3.d /= 1.0 / data[92];
+
+      u1 = opUnion(u1, u1s3);
+
+
+      }
 u1.d /= 1.0 / data[1];
 start = opUnion(start, u1);
-} //Union
+} //walls
+{
+Hit u1 = MAXHIT; 
+vec3 pu1 = pu0;
+ pu1 *= 1.0 / data[120];
+ pu1 = move(pu1, vec3(data[121], data[122], data[123]) * (1.0 / data[120]));
+ pu1 = rot3D(pu1, vec3(data[124], data[125], data[126]));
+{
+
+      vec3 u1s0p = pu1;
+ u1s0p *= 1.0 / data[127];
+ u1s0p = move(u1s0p, vec3(data[128], data[129], data[130]) * (1.0 / data[127]));
+ u1s0p = rot3D(u1s0p, vec3(data[131], data[132], data[133]));
+
+      Hit u1s0 = Hit(
+         sdSphere(u1s0p, data[134]),
+         Mat(vec3(data[135], data[136], data[137]), data[138], vec3(data[139], data[140], data[141]), data[142], vec3(data[143], data[144], data[145]), data[146], data[147], data[148], data[149], vec3(data[150], data[151], data[152]))
+      );
+      u1s0.d /= 1.0 / data[127];
+
+      u1 = opUnion(u1, u1s0);
+
+
+      }
+{
+
+      vec3 u1s1p = pu1;
+ u1s1p *= 1.0 / data[153];
+ u1s1p = move(u1s1p, vec3(data[154], data[155], data[156]) * (1.0 / data[153]));
+ u1s1p = rot3D(u1s1p, vec3(data[157], data[158], data[159]));
+
+      Hit u1s1 = Hit(
+         sdSphere(u1s1p, data[160]),
+         Mat(vec3(data[161], data[162], data[163]), data[164], vec3(data[165], data[166], data[167]), data[168], vec3(data[169], data[170], data[171]), data[172], data[173], data[174], data[175], vec3(data[176], data[177], data[178]))
+      );
+      u1s1.d /= 1.0 / data[153];
+
+      u1 = opUnion(u1, u1s1);
+
+
+      }
+{
+
+      vec3 u1s2p = pu1;
+ u1s2p *= 1.0 / data[179];
+ u1s2p = move(u1s2p, vec3(data[180], data[181], data[182]) * (1.0 / data[179]));
+ u1s2p = rot3D(u1s2p, vec3(data[183], data[184], data[185]));
+
+      Hit u1s2 = Hit(
+         sdCube(u1s2p, vec3(data[186], data[187], data[188])),
+         Mat(vec3(data[189], data[190], data[191]), data[192], vec3(data[193], data[194], data[195]), data[196], vec3(data[197], data[198], data[199]), data[200], data[201], data[202], data[203], vec3(data[204], data[205], data[206]))
+      );
+      u1s2.d /= 1.0 / data[179];
+
+      u1 = opUnion(u1, u1s2);
+
+
+      }
+{
+
+      vec3 u1s3p = pu1;
+ u1s3p *= 1.0 / data[207];
+ u1s3p = move(u1s3p, vec3(data[208], data[209], data[210]) * (1.0 / data[207]));
+ u1s3p = rot3D(u1s3p, vec3(data[211], data[212], data[213]));
+
+      Hit u1s3 = Hit(
+         sdCube(u1s3p, vec3(data[214], data[215], data[216])),
+         Mat(vec3(data[217], data[218], data[219]), data[220], vec3(data[221], data[222], data[223]), data[224], vec3(data[225], data[226], data[227]), data[228], data[229], data[230], data[231], vec3(data[232], data[233], data[234]))
+      );
+      u1s3.d /= 1.0 / data[207];
+
+      u1 = opUnion(u1, u1s3);
+
+
+      }
+u1.d /= 1.0 / data[120];
+start = opUnion(start, u1);
+} //test
 
          return start;
       }
@@ -296,214 +426,6 @@ uint gen_rng(ivec2 gl_uv, int frame, ivec2 dimentions)
 // end include
 
 
-// included "assets/shaders/path_tracer\\tester.glsl"
-struct Cube {
-    vec3 min;
-    vec3 max;
-};
-
-float expensiveFunction(vec3 p, float s) {
-    float result = 0.0;
-    for (int i = 0; i < 100; i++) {
-        result += sqrt(float(i) * 0.3214);
-    }
-    return 1.0 / result;
-}
-
-float expensive_sdf(vec3 p, float s) {
-    return length(p) - s - (expensiveFunction(p, s) * 0.0000001);
-    //    return length(p) - s;
-}
-
-vec2 intersectAABB(Ray ray, Cube cube) {
-    vec3 tMin = (cube.min - ray.ro) / ray.rd;
-    vec3 tMax = (cube.max - ray.ro) / ray.rd;
-    vec3 t1 = min(tMin, tMax);
-    vec3 t2 = max(tMin, tMax);
-    float tNear = max(max(t1.x, t1.y), t1.z);
-    float tFar = min(min(t2.x, t2.y), t2.z);
-    return vec2(tNear, tFar);
-}
-
-bool bool_hit(vec2 intersect) {
-    return intersect.x < intersect.y && intersect.y > 0.0;
-}
-
-Cube from_pos_size(vec3 pos, vec3 size) {
-    Cube cube;
-    cube.min = pos - size;
-    cube.max = pos + size;
-
-    return cube;
-}
-
-
-#define A 4
-const mat2x3[A] objects = mat2x3[A](
-    mat2x3(vec3(0, -2.32, 0), vec3(11.63, 1, 12.26)), // floor
-    mat2x3(vec3(0, 3.25, 0), vec3(1.0, 1.0, 1.0)),
-    mat2x3(vec3(0, -0.06, 1.8), vec3(1.0)),
-    mat2x3(vec3(-0.05, -0.2, 1.8), vec3(1.0))
-);
-
-#define OTA bool[A]
-
-Hit test_map(vec3 pos, OTA test) {
-    vec3 tr;
-    Hit back = Hit(BIGNUM, MDEF);
-    Hit temp;
-
-    if (s.aabb == 1) {
-        for (int i = 0; i < A; i++) { test[i] = true; }
-    }
-
-    // 0
-    if (test[0]) {
-        tr = pos;
-        tr = move(tr, objects[0][0]);
-        //rot
-        temp = Hit(
-        sdCube(tr * 1, objects[0][1]) / 1,
-
-        Mat(vec3(0, 0.6313726, 1), vec3(0.0), 0.75, vec3(0.50980395, 0.53333336, 1), 0.2, 0, 0, 0.015, vec3(0.4509804, 0, 0))
-        );
-
-        back = opUnion(back, temp);
-    }
-
-    if (test[1]) {
-        tr = pos;
-        tr = move(tr, objects[1][0]);
-        //rot
-        temp = Hit(
-        sdCube(tr * 1, objects[1][1]) / 1,
-
-        Mat(vec3(0, 0, 0), vec3(2.0), 0, vec3(0, 0, 0), 0, 0, 0, 0, vec3(0, 0, 0))
-        );
-
-        back = opUnion(back, temp);
-    }
-
-    if (test[2]) {
-        tr = pos;
-        tr = move(tr, objects[2][0]);
-        tr = rot3D(tr, vec3(1.61, 2.82, 1.87));
-        temp =  Hit(
-        sdOctahedronExact(tr * 1, 1) / 1,
-
-        Mat(vec3(1, 0, 0), vec3(0), 0.0, vec3(0.5, 0, 0), 1.0, 0, 0, 0, vec3(0, 0, 0))
-        );
-
-        back = opUnion(back, temp);
-    }
-
-    if (test[3]) {
-        tr = pos;
-        tr = move(tr, objects[3][0]);
-        tr = rot3D(tr, vec3(1.7, 1.8, 2.68));
-        temp =  Hit(
-        sdOctahedronExact(tr * 1, 1) / 1,
-
-        Mat(vec3(0, 0, 0), vec3(0, 0, 0), 1, vec3(1, 1, 1), 0.555, 0, 0, 0, vec3(0, 0, 0))
-        );
-
-        back = opUnion(back, temp);
-    }
-
-
-    return back;
-}
-
-
-float t_pull(vec3 p, vec3 e, OTA hits)
-{
-    return test_map(p + e, hits).d;
-}
-
-vec3 test_calc_normal(vec3 p, OTA hits) {
-    const vec3 e = vec3(.0001, 0.0, 0.0);
-    return normalize(
-        vec3(
-            t_pull(p, e.xyy, hits) - t_pull(p, -e.xyy, hits),
-            t_pull(p, e.yxy, hits) - t_pull(p, -e.yxy, hits),
-            t_pull(p, e.yyx, hits) - t_pull(p, -e.yyx, hits)
-        )
-    );
-}
-
-
-OTA bounds_map(Ray ray, inout int bc) {
-    vec2 inter;
-    OTA hits;
-
-
-    for (int i = 0; i < A; i++) {
-        if (bool_hit(intersectAABB(ray, from_pos_size(objects[i][0], objects[i][1] * 1.5)))) {
-            hits[i] = true;
-
-            bc += 1;
-        }
-    }
-
-
-    return hits;
-}
-
-
-
-Hit TestCastRay(Ray ray, inout int steps, OTA bounds) {
-    float t = 0.0;
-    Mat mat;
-    for (steps = 0; steps < STEPS; steps++) {
-        vec3 p = ray.ro + ray.rd * t;
-        Hit hit = test_map(p, bounds);
-        mat = hit.mat;
-        t += hit.d;
-
-        if (hit.d < MHD) break;
-        if (t > FP) break;
-    }
-    return Hit(t, mat);
-}
-
-
-
-vec3 test_cast(Ray in_ray) {
-    Ray ray = in_ray;
-
-    vec3 col = vec3(0.0);
-    vec3 intersect_color = vec3(0.0);
-
-    int steps;
-
-    if (s.bounces < 8)
-    {
-        OTA hits;
-        for (int i = 0; i < A; i++) {hits[i] = true; }
-        float d = TestCastRay(ray, steps, hits).d;
-        if (d < FP) { col.b += d / 5.0; }
-        col.g = float(steps) / float(STEPS);
-        return col;
-    }
-
-
-        int bc = 0;
-    OTA hits = bounds_map(ray, bc);
-
-    col.r = float(bc) / float(A);
-
-
-    float d = TestCastRay(ray, steps, hits).d;
-    if (d < FP) { col.b += d / 5.0; }
-
-
-
-    col.g = float(steps) / float(STEPS);
-
-    return col + intersect_color;
-}
-
-// end include
 
 
 Hit CastRay(Ray ray) {
@@ -516,8 +438,10 @@ Hit CastRay(Ray ray) {
         t += hit.d;
 
         if (abs(hit.d) < MHD) break;
-        if (t > FP) break;
+
+        if (t > FP) return Hit(t, MDEF);
     }
+
     return Hit(t, mat);
 }
 
@@ -582,7 +506,7 @@ vec3 path_trace(Ray start_ray, uint rng) {
                 }
             }
 
-            ret += hit.mat.light * throughput;
+            ret += (normalize(hit.mat.light) * hit.mat.brightness) * throughput;
             throughput *= mix(hit.mat.col, hit.mat.spec_col, float(do_spec));
 
             throughput /= ray_prob;
@@ -625,7 +549,8 @@ vec3 colors(Ray ray) {
 
 //    return test.mat.col;
 
-    return test_cast(ray);
+    return CastRay(ray).mat.col;
+    //return test_cast(ray);
 }
 
 

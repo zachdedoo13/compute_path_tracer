@@ -212,8 +212,6 @@ impl SDFEditor {
 
 
       println!("Compiled in {:?}", st.elapsed());
-
-      println!("{out}//////////////////////////////////////////////////////////////////////////");
       out
    }
 
@@ -247,6 +245,7 @@ impl SDFEditorPackage {
 
       if self.comp_data.rec_update.queue_compile | self.comp_data.rec_update.queue_update {
          self.sdfeditor.update(path_tracer, setup, &mut self.comp_data);
+         path_tracer.changed = true;
          self.comp_data.data_array.update(setup);
       }
       else {

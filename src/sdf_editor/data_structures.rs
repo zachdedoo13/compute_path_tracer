@@ -49,7 +49,15 @@ impl Transform {
       self.rotation.refresh(comp_data);
       self.scale.refresh(comp_data);
    }
+
+   pub fn rehash(&mut self) {
+      self.position.rehash();
+      self.rotation.rehash();
+      self.scale.rehash();
+   }
 }
+
+
 
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Material {
@@ -113,4 +121,58 @@ impl Material {
              self.refract_color.color_ui(ui);
           });
    }
+
+   pub fn compile(&self, comp_data: &mut CompData) -> String {
+      let col = self.color.compile(comp_data);
+      let brightness = self.brightness.compile(comp_data);
+      let light = self.light_col.compile(comp_data);
+      let spec = self.specular_chance.compile(comp_data);
+      let spec_col = self.specular_color.compile(comp_data);
+      let roughness = self.roughness.compile(comp_data);
+      let ior = self.ior.compile(comp_data);
+      let refract_chance = self.refract_chance.compile(comp_data);
+      let refract_roughness = self.refract_roughness.compile(comp_data);
+      let refract_col = self.refract_color.compile(comp_data);
+
+      format!(
+         "Mat({}, {}, {}, {}, {}, {}, {}, {}, {}, {})",
+         col, brightness, light, spec, spec_col, roughness, ior, refract_chance, refract_roughness, refract_col
+      )
+   }
+
+   pub fn refresh(&self, comp_data: &mut CompData) {
+      self.color.refresh(comp_data);
+      self.brightness.refresh(comp_data);
+      self.light_col.refresh(comp_data);
+      self.specular_chance.refresh(comp_data);
+      self.specular_color.refresh(comp_data);
+      self.roughness.refresh(comp_data);
+      self.ior.refresh(comp_data);
+      self.refract_chance.refresh(comp_data);
+      self.refract_roughness.refresh(comp_data);
+      self.refract_color.refresh(comp_data);
+   }
+
+   pub fn rehash(&mut self) {
+      self.color.rehash();
+      self.brightness.rehash();
+      self.light_col.rehash();
+      self.specular_chance.rehash();
+      self.specular_color.rehash();
+      self.roughness.rehash();
+      self.ior.rehash();
+      self.refract_chance.rehash();
+      self.refract_roughness.rehash();
+      self.refract_color.rehash();
+   }
+}
+
+
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct AABB {
+   position: [f32; 3],
+   size: [f32; 3],
+}
+impl AABB {
+   
 }

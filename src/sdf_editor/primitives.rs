@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use bytemuck::cast_slice;
 use egui::{DragValue, Label, Ui};
+use log::debug;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
@@ -253,6 +254,10 @@ impl Float {
    pub fn refresh(&self, comp_data: &mut CompData) {
       comp_data.data_array.refresh(self.hash, self.val);
    }
+
+   pub fn rehash(&mut self) {
+      self.hash = gen_hash();
+   }
 }
 
 #[derive(Debug, Serialize, Deserialize, PartialEq, Clone)]
@@ -310,6 +315,12 @@ impl V3 {
       self.x.refresh(comp_data);
       self.y.refresh(comp_data);
       self.z.refresh(comp_data);
+   }
+
+   pub fn rehash(&mut self) {
+      self.x.rehash();
+      self.y.rehash();
+      self.z.rehash();
    }
 }
 

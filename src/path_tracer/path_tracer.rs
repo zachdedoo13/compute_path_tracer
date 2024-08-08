@@ -21,7 +21,7 @@ pub struct PathTracer {
    pub constants: UniformPackageSingles<Constants>,
    pub settings: UniformPackageSingles<Settings>,
 
-   changed: bool,
+   pub changed: bool,
 }
 
 impl PathTracer {
