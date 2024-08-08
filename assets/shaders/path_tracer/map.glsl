@@ -95,76 +95,62 @@
 //    return u0;
 //}
 
-#define MAXHIT Hit(10000.0, MDEF)
-
-Hit map(vec3 pu0) {
-    Hit start = MAXHIT;
-
-    float scale = 1.0 / 0.2;
-
-    {
-        Hit u0 = MAXHIT;
-
-        vec3 u0s0p = move(pu0 * scale, vec3(0, 0, 0));
-
-        Hit u0s0 = Hit(
-            sdSphere(u0s0p * 1.0, 1) / 1.0,
-            MDEF
-        );
-        u0 = opUnion(u0, u0s0);
-
-        vec3 u0s1p = move(u0s0p, vec3(5, 0, 0));
-        Hit u0s1 = Hit(
-            sdSphere(u0s1p * 1.0, 1) / 1.0,
-            MDEF
-        );
-        u0 = opUnion(u0, u0s1);
-
-
-        u0.d /= scale;
-        start = opUnion(start, u0);
-    }
-
-    return start;
-}
-
-
 
 #define MAXHIT Hit(10000.0, MDEF)
+#define CHECK_ARRAY bool[2]
 
-Hit map(vec3 pu0) {
+Hit map(vec3 pu0, CHECK_ARRAY check) {
     Hit start = MAXHIT;
 
-    {
+    if (check[0]) {
         Hit u1 = MAXHIT;
         vec3 pu1 = pu0;
-        pu1 *= 0.65;
+        pu1 *= 1.0 / 1.0;
         pu1 = move(pu1, vec3(0, 0, 0));
         pu1 = rot3D(pu1, vec3(0, 0, 0));
-        {
 
+        if (check[1]) {
             vec3 u1s0p = pu1;
-            u1s0p *= 1;
+            u1s0p *= 1.0 / 0.5;
             u1s0p = move(u1s0p, vec3(0, 0, 0));
             u1s0p = rot3D(u1s0p, vec3(0, 0, 0));
 
             Hit u1s0 = Hit(
-            sdSphere(u1s0p, 1),
-            MDEF
+                sdSphere(u1s0p, 1),
+                MDEF
             );
-            u1s0.d /= 1;
+            u1s0.d /= 1.0 / 0.5;
 
             u1 = opUnion(u1, u1s0);
-
-
         }
-        u1.d /= 0.65;
+
+        u1.d /= 1.0 / 1.0;
         start = opUnion(start, u1);
     }
 
     return start;
 }
 
+bool[2] bounds(Ray ray, inout vec3 debug) {
+    debug = vec3(0.0);
+    bool[2] back;
+    float scale;
+
+    scale = 1.0;
+    if (bool_hit(intersectAABB(ray, from_pos_size(vec3(0.0), vec3(1.0) * scale)))) {
+        back[0] = true;
+        debug.g += 0.3;
+
+        scale *= 0.5;
+        if (bool_hit(intersectAABB(ray, from_pos_size(vec3(0.0), vec3(1.0) * scale )))) {
+            back[1] = true;
+            debug.r += 0.3;
+        }
+    }
+
+
+    return back;
+}
 
 
 

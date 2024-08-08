@@ -62,21 +62,21 @@ struct Hit {float d; Mat mat; };
 
 #define MDEF Mat(vec3(0.0), 0.0, vec3(0.0), 0.0, vec3(0.0), 0.0, 0.0, 0.0, 0.0, vec3(0.0))
 
-
+#include "aabb.glsl"
 #include "shapes.glsl"
-#include "map"
+#include "map.glsl"
 #include "funcs.glsl"
 #include "rng.glsl"
 
 
 
 
-Hit CastRay(Ray ray) {
+Hit CastRay(Ray ray, CHECK_ARRAY check) {
     float t = 0.0;
     Mat mat;
     for (int i = 0; i < STEPS; i++) {
         vec3 p = ray.ro + ray.rd * t;
-        Hit hit = map(p);
+        Hit hit = map(p, check);
         mat = hit.mat;
         t += hit.d;
 
@@ -97,16 +97,10 @@ vec3 path_trace(Ray start_ray, uint rng) {
     // path traceing loop
     int i;
     for (i = 0; i <= s.bounces; i++) {
-//        OTA hits;
-//        Hit hit;
-//        int bc = 0;
-//        hits = bounds_map(ray, bc);
-//
-//        int steps;
-//        hit = TestCastRay(ray, steps, hits);
+        vec3 cube_debug;
+        CHECK_ARRAY check = bounds(ray, cube_debug);
 
-        Hit hit = CastRay(ray);
-
+        Hit hit = CastRay(ray, check);
 
         // out of bounds
         if (hit.d > FP) {
@@ -119,7 +113,7 @@ vec3 path_trace(Ray start_ray, uint rng) {
 
 //       vec3 hit_normal = test_calc_normal(hit_pos, hits);
 
-        vec3 hit_normal = calc_normal(hit_pos);
+        vec3 hit_normal = calc_normal(hit_pos, check);
 
         ray.ro = hit_pos + hit_normal * OFFSET;
 
@@ -174,12 +168,14 @@ vec3 path_trace(Ray start_ray, uint rng) {
 
 
 vec3 normals(Ray ray) {
+    vec3 cube_debug;
+    CHECK_ARRAY check = bounds(ray, cube_debug);
 
-    Hit test = CastRay(ray);
+    Hit test = CastRay(ray, check);
 
-    if (test.d > FP) { return vec3(0.0); }
+    if (test.d > FP) { return cube_debug; }
 
-    return normalize(calc_normal(calc_point(ray, test.d))) * 0.5 + 0.5;
+    return (normalize(calc_normal(calc_point(ray, test.d), check)) * 0.5 + 0.5) * 0.2 + cube_debug;
 }
 
 
@@ -191,8 +187,10 @@ vec3 colors(Ray ray) {
 //    if (test.d > FP) { return vec3(0.0); }
 
 //    return test.mat.col;
+    vec3 cube_debug;
+    CHECK_ARRAY check = bounds(ray, cube_debug);
 
-    return CastRay(ray).mat.col;
+    return CastRay(ray, check).mat.col;
     //return test_cast(ray);
 }
 

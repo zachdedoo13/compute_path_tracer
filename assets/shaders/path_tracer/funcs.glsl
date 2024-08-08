@@ -18,18 +18,18 @@ vec3 calc_point(Ray ray, float dist) {
 }
 
 
-float pull(vec3 p, vec3 e)
+float pull(vec3 p, vec3 e, CHECK_ARRAY check)
 {
-    return map(p + e).d;
+    return map(p + e, check).d;
 }
 
-vec3 calc_normal(vec3 p) {
+vec3 calc_normal(vec3 p, CHECK_ARRAY check) {
     const vec3 e = vec3(.0001, 0.0, 0.0);
     return normalize(
         vec3(
-            pull(p, e.xyy) - pull(p, -e.xyy),
-            pull(p, e.yxy) - pull(p, -e.yxy),
-            pull(p, e.yyx) - pull(p, -e.yyx)
+            pull(p, e.xyy, check) - pull(p, -e.xyy, check),
+            pull(p, e.yxy, check) - pull(p, -e.yxy, check),
+            pull(p, e.yyx, check) - pull(p, -e.yyx, check)
         )
     );
 }
