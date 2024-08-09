@@ -9,6 +9,7 @@ use crate::sdf_editor::primitives::{CompData, Float, S2, V3};
 pub struct Union {
    name: String,
    transform: Transform,
+   union_type: UnionType,
 
    pub children_unions: Vec<Union>,
    pub children_shapes: Vec<Shape>,
@@ -19,6 +20,7 @@ impl Union {
          name: "Union".to_string(),
          transform: Transform::new(),
 
+         union_type: UnionType::Union,
          children_unions: vec![],
          children_shapes: vec![],
       }
@@ -41,6 +43,15 @@ impl Union {
       egui::CollapsingHeader::new("Settings")
           .show(ui, |ui| {
 
+             let check = self.union_type.clone();
+             self.union_type.dropdown(ui);
+             if self.union_type != check { comp_data.rec_update.both(); }
+
+             let check = self.union_type.clone();
+             self.union_type.settings_ui(ui);
+             if self.union_type != check { comp_data.rec_update.update(); }
+
+
              ui.add(TextEdit::singleline(&mut self.name)
                  .hint_text("Enter name")
                  .desired_width(75.0)
@@ -52,8 +63,9 @@ impl Union {
                  });
 
              let check = self.transform.clone();
-             self.transform.ui(ui);
+             let bloop = self.transform.ui(ui);
              if self.transform != check { comp_data.rec_update.update(); }
+             if bloop { comp_data.rec_update.both(); }
 
           });
 
@@ -128,7 +140,7 @@ impl Union {
    }
 
 
-   pub fn compile(&self, comp_data: &mut CompData, reference: &String, in_union_depth: u32) -> String {
+   pub fn compile(&self, comp_data: &mut CompData, reference: &String, in_union_depth: u32, union_type: &UnionType) -> String {
       let mut out = String::new();
       let union_depth = in_union_depth + 1;
 
@@ -143,13 +155,13 @@ impl Union {
 
       // Compile all child unions
       for union in self.children_unions.iter() {
-         out.push_str(union.compile(comp_data, &format!("u{union_depth}"), union_depth).as_str());
+         out.push_str(union.compile(comp_data, &format!("u{union_depth}"), union_depth, &self.union_type).as_str());
       }
 
       // Compile all child shapes
       let mut shape_index = 0;
       for shape in self.children_shapes.iter() {
-         out.push_str(shape.compile(comp_data, union_depth, shape_index).as_str());
+         out.push_str(shape.compile(comp_data, union_depth, shape_index, &self.union_type).as_str());
          shape_index += 1;
       }
 
@@ -157,10 +169,34 @@ impl Union {
       out.push_str(format!("{}\n", self.transform.finalise_scale(&format!("u{union_depth}"), comp_data)).as_str());
 
       // Combine the current union with the reference union
-      out.push_str(format!("{reference} = opUnion({reference}, u{union_depth});\n").as_str());
+      // out.push_str(format!("{reference} = opUnion({reference}, u{union_depth});\n").as_str());
+      out.push_str(union_type.compile(&reference, &format!("u{union_depth}"), 1).as_str());
 
       // End the union block
       out.push_str(format!("}} //{}\n", self.name).as_str());
+
+      out
+   }
+
+   pub fn aabb_compile(&self, comp_data: &mut CompData) -> String {
+      let mut out = String::new();
+
+
+      let pos_trail = comp_data.aabb_pos_trail.clone();
+      let pos_trans = self.transform.position.compile(comp_data);
+      comp_data.aabb_pos_trail.push_str(format!("{} +", pos_trans).as_str());
+
+      let scale_trail = comp_data.aabb_scale_trail.clone();
+      let scale_trans = self.transform.scale.compile(comp_data);
+      comp_data.aabb_scale_trail.push_str(format!("{} *", scale_trans).as_str());
+
+      for shape in self.children_shapes.iter() {
+         out.push_str(shape.aabb_compile(comp_data).as_str())
+      }
+
+      comp_data.aabb_pos_trail = pos_trail;
+      comp_data.aabb_scale_trail = scale_trail;
+
 
       out
    }
@@ -175,6 +211,48 @@ impl Union {
       }
    }
 }
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum UnionType {
+   Union,
+   Subtraction,
+}
+impl UnionType {
+   pub fn dropdown(&mut self, ui: &mut Ui) {
+      ComboBox::from_label("")
+          .selected_text(self.text())
+          .show_ui(ui, |ui| {
+             ui.selectable_value(self, UnionType::Union, "Union");
+             ui.selectable_value(self, UnionType::Subtraction, "Subtraction");
+          });
+   }
+
+   pub fn settings_ui(&mut self, ui: &mut Ui) {
+      match self {
+         UnionType::Union => { ui.label("No settings"); }
+         UnionType::Subtraction => { ui.label("No settings"); }
+      }
+   }
+
+   fn text(&self) -> &str {
+      match self {
+         UnionType::Union => {"Union"}
+         UnionType::Subtraction => {"Subtraction"}
+      }
+   }
+
+   pub fn compile(&self, reference: &String, with: &String, index: u32) -> String {
+      if index == 0 {
+         return format!("{reference} = {with};")
+      }
+      match self {
+         UnionType::Union => { format!("{reference} = opUnion({reference}, {with});") }
+         UnionType::Subtraction => { format!("{reference} = opSubtraction({reference}, {with});") }
+      }
+   }
+}
+
+
 
 
 
@@ -293,8 +371,9 @@ impl Shape {
           });
 
       let check = self.transform.clone();
-      self.transform.ui(ui);
+      let bloop = self.transform.ui(ui);
       if self.transform != check { comp_data.rec_update.update() }
+      if bloop { comp_data.rec_update.both(); }
 
       let check = self.material.clone();
       self.material.ui(ui);
@@ -322,7 +401,7 @@ impl Shape {
           });
    }
 
-   pub fn compile(&self, comp_data: &mut CompData, union_depth: u32, current_shape: u32) -> String {
+   pub fn compile(&self, comp_data: &mut CompData, union_depth: u32, current_shape: u32, union_type: &UnionType) -> String {
       let mut out = String::new();
 
       let ui = union_depth; // union index
@@ -337,7 +416,9 @@ impl Shape {
 
       let material = self.material.compile(comp_data);
 
-      out.push_str("{\n"); // todo bounds check
+      out.push_str(format!("{} {{\n", self.transform.aabb_check(comp_data)).as_str()); // todo bounds check
+
+      let union = union_type.compile(&format!("u{ui}"), &format!("u{ui}s{si}"), si);
 
       out.push_str(format!(r#"
       {transform_code}
@@ -348,7 +429,7 @@ impl Shape {
       );
       {}
 
-      u{ui} = opUnion(u{ui}, u{ui}s{si});
+      {union}
 
 
       "#, self.transform.finalise_scale(&format!("u{ui}s{si}"), comp_data)).as_str());
@@ -357,6 +438,30 @@ impl Shape {
 
       out
    }
+
+   pub fn aabb_compile(&self, comp_data: &mut CompData) -> String {
+      let mut out = String::new();
+
+      let so = match &self.current_shape {
+         Shapes::Sphere(data) => {Some(format!("vec3({})", data.compile(comp_data)))}
+         Shapes::Cube(data) => {Some(data.compile(comp_data))}
+         Shapes::Plane => {None}
+      };
+
+      out.push_str(format!(r#"
+      if {} {{
+
+      back[{}] = true;
+      debug += 0.1;
+
+      }}
+      "#, self.transform.aabb_compile(comp_data, so), comp_data.aabb_index).as_str());
+
+
+      comp_data.aabb_index += 1;
+      out
+   }
+
 
    fn refresh(&self, comp_data: &mut CompData) {
       self.transform.refresh(comp_data);

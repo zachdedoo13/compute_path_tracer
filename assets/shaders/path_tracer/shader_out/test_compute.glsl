@@ -108,6 +108,8 @@ float sdCube(vec3 p, vec3 b )
     return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
 }
 
+
+
 float sdOctahedronExact(vec3 p, float s)
 {
     p = abs(p);
@@ -170,167 +172,226 @@ vec3 rot3D(vec3 p, vec3 rot) {
 Hit opUnion(Hit v1, Hit v2) {
     return v1.d < v2.d ? v1 : v2;
 }
+
+Hit opSubtraction(Hit v1, Hit v2) {
+//    return -v1.d > v2.d ? v1 : v2;
+    Hit nv1 = Hit(-v1.d, v1.mat);
+    float depth = max(nv1.d, v2.d);
+    return depth == nv1.d ? nv1 : v2;
+}
 // end include
-// included "assets/shaders/path_tracer\\map.glsl"
-//Hit map(vec3 pos) {
-//    Hit[2] shapes;
-//    vec3 tr;
-//
-//    tr = pos;
-//    tr = move(tr, vec3(2.46, 0.35, 0));
-//    //rot
-//    shapes[0] = Hit(
-//    sdCube(tr * 1, vec3(1, 1, 1)) / 1,
-//
-//    Mat(vec3(1, 1, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
-//
-//    );
-//
-//    tr = pos;
-//    //pos
-//    //rot
-//    shapes[1] = Hit(
-//    sdSphere(tr * 1, 1) / 1,
-//
-//    Mat(vec3(1, 1, 1), vec3(0, 0, 0), 0, vec3(0, 0, 0), 0)
-//
-//    );
-//
-//    Hit back = shapes[0];
-//    for (int i = 1; i < 2; i ++) {
-//        back = opUnion(back, shapes[i]);
-//    }
-//
-//    return back;
-//}
+// included override "assets/shaders/path_tracer\\map"
 
-//#define MAXHIT Hit(10000.0, MDEF)
+         #define CHECK_ARRAY bool[7]
 
-//Hit map(vec3 pu0) {
-//    // top level is allways min union
-//    Hit u0 = MAXHIT;
-//
-//        Hit u1 = MAXHIT;
-//            // first union transform
-//            vec3 pu1 = move(pu0, vec3(0.0));
-//
-//            Hit u2 = MAXHIT;
-//                // second union transform
-//                vec3 pu2 = move(pu1, vec3(0.0));
-//
-//                Hit u2s1 = Hit(
-//                    sdCube(move(pu2, vec3(1.0)) * 1, vec3(1, 1, 1)) / 1,
-//                    MDEF
-//                );
-//                u2 = opUnion(u2, u2s1);
-//
-//            u1 = opUnion(u1, u2);
-//
-//    u0 = opUnion(u0, u1);
-//
-//
-//    Hit u0s1 = Hit(
-//        sdSphere(move(pu0, vec3(0.0)) * 1, 0.5) / 1,
-//        MDEF
-//    );
-//    u0 = opUnion(u0, u0s1);
-//
-//    return u0;
-//}
+         CHECK_ARRAY bounds(Ray ray, inout vec3 debug) {
+            debug = vec3(0.0);
+            CHECK_ARRAY back;
+            float scale;
 
-//Hit map(vec3 pu0) {
-//    Hit u0 = MAXHIT;
-//
-//    // union 1
-//    { // bounds 1
-//        Hit u1 = MAXHIT;
-//        vec3 pu1 = move(pu0, vec3(0.0));
-//
-//        {  // bounds 2
-//            Hit u1s0 = Hit(
-//                sdCube(move(pu1, vec3(1.0)) * 1, vec3(1, 1, 1)) / 1,
-//                MDEF
-//            );
-//            u1 = opUnion(u1, u1s0);
-//        }
-//
-//        u0 = opUnion(u0, u1);
-//    }
-//
-//    { // bounds 3
-//        Hit u0s0 = Hit(
-//            sdSphere(move(pu0, vec3(0.0)) * 1, 0.5) / 1,
-//            MDEF
-//        );
-//        u0 = opUnion(u0, u0s0);
-//    }
-//
-//
-//    return u0;
-//}
+            
+      if (false) {
+
+      back[0] = true;
+      debug += 0.1;
+
+      }
+      
+      if (false) {
+
+      back[1] = true;
+      debug += 0.1;
+
+      }
+      
+      if (bool_hit(intersectAABB(ray, from_pos_size(vec3(data[68], data[69], data[70]) + vec3(data[76], data[77], data[78]), (vec3(data[83]) * ( data[67] * data[75])) * data[82] )))) {
+
+      back[2] = true;
+      debug += 0.1;
+
+      }
+      
+      if (bool_hit(intersectAABB(ray, from_pos_size(vec3(data[68], data[69], data[70]) + vec3(data[103], data[104], data[105]), (vec3(data[110], data[111], data[112]) * ( data[67] * data[102])) * data[109] )))) {
+
+      back[3] = true;
+      debug += 0.1;
+
+      }
+      
+      if (bool_hit(intersectAABB(ray, from_pos_size(vec3(data[68], data[69], data[70]) + vec3(data[132], data[133], data[134]), (vec3(data[139]) * ( data[67] * data[131])) * data[138] )))) {
+
+      back[4] = true;
+      debug += 0.1;
+
+      }
+      
+      if (bool_hit(intersectAABB(ray, from_pos_size(vec3(data[68], data[69], data[70]) + vec3(data[159], data[160], data[161]), (vec3(data[166]) * ( data[67] * data[158])) * data[165] )))) {
+
+      back[5] = true;
+      debug += 0.1;
+
+      }
+      
+      if (bool_hit(intersectAABB(ray, from_pos_size(vec3(data[68], data[69], data[70]) + vec3(data[186], data[187], data[188]), (vec3(data[193], data[194], data[195]) * ( data[67] * data[185])) * data[192] )))) {
+
+      back[6] = true;
+      debug += 0.1;
+
+      }
+      
+
+            return back;
+
+         }
+
+       
+
+ 
+      #define MAXHIT Hit(10000.0, MDEF)
+
+      Hit map(vec3 pu0, CHECK_ARRAY check) {
+         Hit start = MAXHIT;
+
+      {
+Hit u1 = MAXHIT; 
+vec3 pu1 = pu0;
+ pu1 *= 1.0 / data[1];
+ pu1 = move(pu1, vec3(data[2], data[3], data[4]) * (1.0 / data[1]));
+ pu1 = rot3D(pu1, vec3(data[5], data[6], data[7]));
+if (true) {
+
+      vec3 u1s0p = pu1;
+ u1s0p *= 1.0 / data[9];
+ u1s0p = move(u1s0p, vec3(data[10], data[11], data[12]) * (1.0 / data[9]));
+ u1s0p = rot3D(u1s0p, vec3(data[13], data[14], data[15]));
+
+      Hit u1s0 = Hit(
+         sdCube(u1s0p, vec3(data[17], data[18], data[19])),
+         Mat(vec3(data[20], data[21], data[22]), data[23], vec3(data[24], data[25], data[26]), data[27], vec3(data[28], data[29], data[30]), data[31], data[32], data[33], data[34], vec3(data[35], data[36], data[37]))
+      );
+      u1s0.d /= 1.0 / data[9];
+
+      u1 = u1s0;
 
 
-#define MAXHIT Hit(10000.0, MDEF)
-#define CHECK_ARRAY bool[2]
+      }
+if (true) {
 
-Hit map(vec3 pu0, CHECK_ARRAY check) {
-    Hit start = MAXHIT;
+      vec3 u1s1p = pu1;
+ u1s1p *= 1.0 / data[38];
+ u1s1p = move(u1s1p, vec3(data[39], data[40], data[41]) * (1.0 / data[38]));
+ u1s1p = rot3D(u1s1p, vec3(data[42], data[43], data[44]));
 
-    if (check[0]) {
-        Hit u1 = MAXHIT;
-        vec3 pu1 = pu0;
-        pu1 *= 1.0 / 1.0;
-        pu1 = move(pu1, vec3(0, 0, 0));
-        pu1 = rot3D(pu1, vec3(0, 0, 0));
+      Hit u1s1 = Hit(
+         sdCube(u1s1p, vec3(data[46], data[47], data[48])),
+         Mat(vec3(data[49], data[50], data[51]), data[52], vec3(data[53], data[54], data[55]), data[56], vec3(data[57], data[58], data[59]), data[60], data[61], data[62], data[63], vec3(data[64], data[65], data[66]))
+      );
+      u1s1.d /= 1.0 / data[38];
 
-        if (check[1]) {
-            vec3 u1s0p = pu1;
-            u1s0p *= 1.0 / 0.5;
-            u1s0p = move(u1s0p, vec3(0, 0, 0));
-            u1s0p = rot3D(u1s0p, vec3(0, 0, 0));
-
-            Hit u1s0 = Hit(
-                sdSphere(u1s0p, 1),
-                MDEF
-            );
-            u1s0.d /= 1.0 / 0.5;
-
-            u1 = opUnion(u1, u1s0);
-        }
-
-        u1.d /= 1.0 / 1.0;
-        start = opUnion(start, u1);
-    }
-
-    return start;
-}
-
-bool[2] bounds(Ray ray, inout vec3 debug) {
-    debug = vec3(0.0);
-    bool[2] back;
-    float scale;
-
-    scale = 1.0;
-    if (bool_hit(intersectAABB(ray, from_pos_size(vec3(0.0), vec3(1.0) * scale)))) {
-        back[0] = true;
-        debug.g += 0.3;
-
-        scale *= 0.5;
-        if (bool_hit(intersectAABB(ray, from_pos_size(vec3(0.0), vec3(1.0) * scale )))) {
-            back[1] = true;
-            debug.r += 0.3;
-        }
-    }
+      u1 = opSubtraction(u1, u1s1);
 
 
-    return back;
-}
+      }
+u1.d /= 1.0 / data[1];
+start = opUnion(start, u1);} //BOX
+{
+Hit u1 = MAXHIT; 
+vec3 pu1 = pu0;
+ pu1 *= 1.0 / data[67];
+ pu1 = move(pu1, vec3(data[68], data[69], data[70]) * (1.0 / data[67]));
+ pu1 = rot3D(pu1, vec3(data[71], data[72], data[73]));
+if (check[2])  {
+
+      vec3 u1s0p = pu1;
+ u1s0p *= 1.0 / data[75];
+ u1s0p = move(u1s0p, vec3(data[76], data[77], data[78]) * (1.0 / data[75]));
+ u1s0p = rot3D(u1s0p, vec3(data[79], data[80], data[81]));
+
+      Hit u1s0 = Hit(
+         sdSphere(u1s0p, data[83]),
+         Mat(vec3(data[84], data[85], data[86]), data[87], vec3(data[88], data[89], data[90]), data[91], vec3(data[92], data[93], data[94]), data[95], data[96], data[97], data[98], vec3(data[99], data[100], data[101]))
+      );
+      u1s0.d /= 1.0 / data[75];
+
+      u1 = u1s0;
 
 
+      }
+if (check[3])  {
+
+      vec3 u1s1p = pu1;
+ u1s1p *= 1.0 / data[102];
+ u1s1p = move(u1s1p, vec3(data[103], data[104], data[105]) * (1.0 / data[102]));
+ u1s1p = rot3D(u1s1p, vec3(data[106], data[107], data[108]));
+
+      Hit u1s1 = Hit(
+         sdCube(u1s1p, vec3(data[110], data[111], data[112])),
+         Mat(vec3(data[113], data[114], data[115]), data[116], vec3(data[117], data[118], data[119]), data[120], vec3(data[121], data[122], data[123]), data[124], data[125], data[126], data[127], vec3(data[128], data[129], data[130]))
+      );
+      u1s1.d /= 1.0 / data[102];
+
+      u1 = opUnion(u1, u1s1);
 
 
-// unused due to overide
+      }
+if (check[4])  {
 
+      vec3 u1s2p = pu1;
+ u1s2p *= 1.0 / data[131];
+ u1s2p = move(u1s2p, vec3(data[132], data[133], data[134]) * (1.0 / data[131]));
+ u1s2p = rot3D(u1s2p, vec3(data[135], data[136], data[137]));
+
+      Hit u1s2 = Hit(
+         sdSphere(u1s2p, data[139]),
+         Mat(vec3(data[140], data[141], data[142]), data[143], vec3(data[144], data[145], data[146]), data[147], vec3(data[148], data[149], data[150]), data[151], data[152], data[153], data[154], vec3(data[155], data[156], data[157]))
+      );
+      u1s2.d /= 1.0 / data[131];
+
+      u1 = opUnion(u1, u1s2);
+
+
+      }
+if (check[5])  {
+
+      vec3 u1s3p = pu1;
+ u1s3p *= 1.0 / data[158];
+ u1s3p = move(u1s3p, vec3(data[159], data[160], data[161]) * (1.0 / data[158]));
+ u1s3p = rot3D(u1s3p, vec3(data[162], data[163], data[164]));
+
+      Hit u1s3 = Hit(
+         sdSphere(u1s3p, data[166]),
+         Mat(vec3(data[167], data[168], data[169]), data[170], vec3(data[171], data[172], data[173]), data[174], vec3(data[175], data[176], data[177]), data[178], data[179], data[180], data[181], vec3(data[182], data[183], data[184]))
+      );
+      u1s3.d /= 1.0 / data[158];
+
+      u1 = opUnion(u1, u1s3);
+
+
+      }
+if (check[6])  {
+
+      vec3 u1s4p = pu1;
+ u1s4p *= 1.0 / data[185];
+ u1s4p = move(u1s4p, vec3(data[186], data[187], data[188]) * (1.0 / data[185]));
+ u1s4p = rot3D(u1s4p, vec3(data[189], data[190], data[191]));
+
+      Hit u1s4 = Hit(
+         sdCube(u1s4p, vec3(data[193], data[194], data[195])),
+         Mat(vec3(data[196], data[197], data[198]), data[199], vec3(data[200], data[201], data[202]), data[203], vec3(data[204], data[205], data[206]), data[207], data[208], data[209], data[210], vec3(data[211], data[212], data[213]))
+      );
+      u1s4.d /= 1.0 / data[185];
+
+      u1 = opUnion(u1, u1s4);
+
+
+      }
+u1.d /= 1.0 / data[67];
+start = opUnion(start, u1);} //stuffs
+
+         return start;
+      }
+
+      
 // end include
 // included "assets/shaders/path_tracer\\funcs.glsl"
 vec2 calc_uv(vec2 gl_uv, ivec2 dimentions) {

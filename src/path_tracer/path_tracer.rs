@@ -5,7 +5,7 @@ use std::path::Path;
 use std::time::Instant;
 use cgmath::Vector2;
 use egui::Ui;
-use wgpu::{BindGroup, BindGroupLayout, BindGroupLayoutEntry, CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, PipelineLayout, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
+use wgpu::{BindGroup, BindGroupLayout, CommandEncoder, ComputePassDescriptor, ComputePipeline, ComputePipelineDescriptor, PipelineLayout, ShaderModule, ShaderModuleDescriptor, ShaderSource, ShaderStages};
 use wgpu::naga::{FastHashMap, ShaderStage};
 use winit::keyboard::KeyCode;
 use crate::{defaults_and_sliders_gui, defaults_only_gui};
@@ -157,7 +157,7 @@ defaults_only_gui!(
 defaults_and_sliders_gui!(
    Settings,
    debug: i32 = 1 => 0..=3,
-   bounces: i32 = 8 => 0..=16,
+   bounces: i32 = 8 => 0..=32,
    scale: f32 = 1.0 => 0.1..=1.0,
    fov: f32 = 1.0 => 0.0..=5.0,
    aabb: i32 = 0 => 0..=1

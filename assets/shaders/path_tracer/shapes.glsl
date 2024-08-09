@@ -8,6 +8,8 @@ float sdCube(vec3 p, vec3 b )
     return length(max(q,0.0)) + min(max(q.x,max(q.y,q.z)),0.0);
 }
 
+
+
 float sdOctahedronExact(vec3 p, float s)
 {
     p = abs(p);
@@ -69,4 +71,11 @@ vec3 rot3D(vec3 p, vec3 rot) {
 // unions
 Hit opUnion(Hit v1, Hit v2) {
     return v1.d < v2.d ? v1 : v2;
+}
+
+Hit opSubtraction(Hit v1, Hit v2) {
+//    return -v1.d > v2.d ? v1 : v2;
+    Hit nv1 = Hit(-v1.d, v1.mat);
+    float depth = max(nv1.d, v2.d);
+    return depth == nv1.d ? nv1 : v2;
 }

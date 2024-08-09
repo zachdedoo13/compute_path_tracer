@@ -18,8 +18,22 @@ use crate::utility::structs::StorageTexturePackage;
 
 
 const PLACEHOLDER_MAP: &str = "\
-   #define MAXHIT Hit(10000.0, MDEF)\n
-   Hit map(vec3 pu0) { return MAXHIT; }";
+   #define MAXHIT Hit(10000.0, MDEF)
+#define CHECK_ARRAY bool[2]
+
+Hit map(vec3 pu0, CHECK_ARRAY check) {
+    Hit start = MAXHIT;
+
+    return start;
+}
+
+bool[2] bounds(Ray ray, inout vec3 debug) {
+    debug = vec3(0.0);
+    bool[2] back;
+    float scale;
+
+    return back;
+}";
 
 
 pub struct State<'a> {
@@ -33,7 +47,8 @@ pub struct State<'a> {
    time_package: TimePackage,
    input_manager: InputManager,
 
-   render_texture: StorageTexturePackage,
+   raw_texture: StorageTexturePackage,
+   post_processes_texture: StorageTexturePackage,
    render_texture_pipeline: RenderTexturePipeline,
 
    path_tracer: PathTracer,
@@ -55,10 +70,12 @@ impl<'a> State<'a> {
       let input_manager = InputManager::new();
 
 
-      let render_texture = StorageTexturePackage::new(&setup, (10.0, 10.0));
-      let render_texture_pipeline = RenderTexturePipeline::new(&setup, &render_texture);
+      let raw_texture = StorageTexturePackage::new(&setup, (10.0, 10.0));
+      let render_texture_pipeline = RenderTexturePipeline::new(&setup, &raw_texture);
 
-      let mut path_tracer = PathTracer::new(&setup, &render_texture, PLACEHOLDER_MAP.to_string(), &sdf_editor_package.comp_data.data_array.bind_group_layout);
+      let post_processes_texture = StorageTexturePackage::new(&setup, (10.0, 10.0));
+
+      let mut path_tracer = PathTracer::new(&setup, &raw_texture, PLACEHOLDER_MAP.to_string(), &sdf_editor_package.comp_data.data_array.bind_group_layout);
 
       Self {
          setup,
@@ -69,7 +86,8 @@ impl<'a> State<'a> {
          time_package,
          input_manager,
 
-         render_texture,
+         raw_texture,
+         post_processes_texture,
          render_texture_pipeline,
 
          path_tracer,
@@ -97,7 +115,7 @@ impl<'a> State<'a> {
    pub fn update(&mut self) {
       self.time_package.update();
 
-      self.path_tracer.update(&self.setup, &mut self.render_texture, &self.time_package, &self.input_manager, self.resized);
+      self.path_tracer.update(&self.setup, &mut self.raw_texture, &self.time_package, &self.input_manager, self.resized);
 
 
       self.sdf_editor_package.update(&mut self.path_tracer, &self.setup);
@@ -135,9 +153,9 @@ impl<'a> State<'a> {
 
                       ui.add(Label::new(
                          format!("Texture: {} x {} = {}",
-                                 &self.render_texture.size.width
-                                 , &self.render_texture.size.height,
-                                 &self.render_texture.size.width * &self.render_texture.size.height
+                                 &self.raw_texture.size.width
+                                 , &self.raw_texture.size.height,
+                                 &self.raw_texture.size.width * &self.raw_texture.size.height
                          )
                       ));
 
@@ -203,8 +221,8 @@ impl<'a> State<'a> {
       });
 
       {
-         self.path_tracer.compute_pass(&mut encoder, &self.render_texture, &self.sdf_editor_package.comp_data.data_array.bind_group);
-         self.render_texture_pipeline.render_pass(&mut encoder, &view, &self.render_texture);
+         self.path_tracer.compute_pass(&mut encoder, &self.raw_texture, &self.sdf_editor_package.comp_data.data_array.bind_group);
+         self.render_texture_pipeline.render_pass(&mut encoder, &view, &self.raw_texture);
       }
 
       self.update_gui(&view, &mut encoder);
@@ -219,7 +237,7 @@ impl<'a> State<'a> {
    fn save_image(&mut self) {
       let staging_buffer = self.setup.device.create_buffer(&wgpu::BufferDescriptor {
          label: None,
-         size: ((self.render_texture.size.width as f32 * self.render_texture.size.height as f32) * (4.0 * std::mem::size_of::<f32>() as f32)) as u64,
+         size: ((self.raw_texture.size.width as f32 * self.raw_texture.size.height as f32) * (4.0 * std::mem::size_of::<f32>() as f32)) as u64,
          usage: BufferUsages::MAP_READ | BufferUsages::COPY_DST,
          mapped_at_creation: false,
       });
@@ -228,13 +246,13 @@ impl<'a> State<'a> {
          buffer: &staging_buffer,
          layout: ImageDataLayout {
             offset: 0,
-            bytes_per_row: Some((4 * std::mem::size_of::<f32>() as u32) * (self.render_texture.size.width)),
-            rows_per_image: Some(self.render_texture.size.height),
+            bytes_per_row: Some((4 * std::mem::size_of::<f32>() as u32) * (self.raw_texture.size.width)),
+            rows_per_image: Some(self.raw_texture.size.height),
          },
       };
 
       let image_copy_texture = ImageCopyTexture {
-         texture: &self.render_texture.texture,
+         texture: &self.raw_texture.texture,
          mip_level: 0,
          origin: Default::default(),
          aspect: Default::default(),
@@ -242,7 +260,7 @@ impl<'a> State<'a> {
 
       let mut encoder = self.setup.device.create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("texture copy encoder") });
 
-      encoder.copy_texture_to_buffer(image_copy_texture, copy_staging_buffer, self.render_texture.size);
+      encoder.copy_texture_to_buffer(image_copy_texture, copy_staging_buffer, self.raw_texture.size);
       self.setup.queue.submit(iter::once(encoder.finish()));
 
       let buffer_slice = staging_buffer.slice(..);
@@ -256,8 +274,8 @@ impl<'a> State<'a> {
             let data = buffer_slice.get_mapped_range();
 
             use image::{ImageBuffer, Rgba};
-            let width = self.render_texture.size.width;
-            let height = self.render_texture.size.height;
+            let width = self.raw_texture.size.width;
+            let height = self.raw_texture.size.height;
 
             let result: &[f32] = bytemuck::cast_slice(&data);
             let mut img: ImageBuffer<Rgba<u8>, Vec<u8>> = ImageBuffer::new(width, height);

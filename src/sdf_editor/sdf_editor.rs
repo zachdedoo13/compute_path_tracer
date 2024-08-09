@@ -3,12 +3,10 @@ use std::time::Instant;
 use egui::{Context, Frame, menu, ScrollArea, Style, TextEdit, Ui, Window};
 use serde::{Deserialize, Serialize};
 use serde_json::{from_str, to_string_pretty};
-use winit::keyboard::KeyCode;
 use crate::inbuilt::setup::Setup;
-use crate::packages::input_manager_package::InputManager;
 use crate::path_tracer::path_tracer::PathTracer;
-use crate::sdf_editor::containers::{Shape, Union};
-use crate::sdf_editor::primitives::{CompData, RecUpdate};
+use crate::sdf_editor::containers::{Shape, Union, UnionType};
+use crate::sdf_editor::primitives::{CompData};
 
 const MAP_PATH: &str = "data/maps/";
 
@@ -188,38 +186,69 @@ impl SDFEditor {
    pub fn compile(&mut self, comp_data: &mut CompData) -> String {
       let st = Instant::now();
 
-      let mut out = String::new();
+      let mut map = String::new();
+      let mut check = String::new();
 
-      out.push_str(r#"
+      map.push_str(r#"
       #define MAXHIT Hit(10000.0, MDEF)
 
-      Hit map(vec3 pu0) {
+      Hit map(vec3 pu0, CHECK_ARRAY check) {
          Hit start = MAXHIT;
 
       "#);
 
 
       for union in self.header_unions.iter() {
-         out.push_str(union.compile(comp_data, &"start".to_string(), 0).as_str());
+         map.push_str(union.compile(comp_data, &"start".to_string(), 0, &UnionType::Union).as_str());
       }
 
 
-      out.push_str(r#"
+      map.push_str(r#"
          return start;
       }
 
       "#);
 
 
-      println!("Compiled in {:?}", st.elapsed());
+      let c = if comp_data.aabb_index > 0 {comp_data.aabb_index} else {1};
+      comp_data.aabb_index = 0;
+      let mut aabbs = String::new();
+      for union in self.header_unions.iter() {
+         comp_data.aabb_pos_trail.clear();
+         aabbs.push_str(union.aabb_compile(comp_data).as_str());
+      }
+
+      comp_data.aabb_index = 0;
+
+
+      check.push_str(format!(r#"
+         #define CHECK_ARRAY bool[{c}]
+
+         CHECK_ARRAY bounds(Ray ray, inout vec3 debug) {{
+            debug = vec3(0.0);
+            CHECK_ARRAY back;
+            float scale;
+
+            {aabbs}
+
+            return back;
+
+         }}
+
+      "#).as_str());
+
+
+      let out = format!("{check} \n\n {map}");
+
+      println!("Compiled in {:?}\n {out}", st.elapsed());
+
       out
    }
 
-   pub fn data_update(&mut self, comp_data: &mut CompData) -> Vec<f32> {
+   pub fn data_update(&mut self, comp_data: &mut CompData) {
       for union in self.header_unions.iter() {
          union.refresh(comp_data)
       }
-      vec![]
    }
 }
 

@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::ops::RangeInclusive;
 use bytemuck::cast_slice;
 use egui::{DragValue, Label, Ui};
-use log::debug;
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
@@ -22,6 +21,10 @@ fn gen_hash() -> u128 {
 pub struct CompData {
    pub checker: bool,
 
+   pub aabb_index: u32,
+   pub aabb_pos_trail: String,
+   pub aabb_scale_trail: String,
+
    pub data_array: DataArray,
    pub rec_update: RecUpdate,
 }
@@ -29,6 +32,9 @@ impl CompData {
    pub fn new(setup: &Setup) -> Self {
       Self {
          checker: true,
+         aabb_index: 0,
+         aabb_pos_trail: "".to_string(),
+         aabb_scale_trail: "".to_string(),
          data_array: DataArray::new(setup),
          rec_update: RecUpdate::set_true(),
       }
@@ -123,6 +129,7 @@ impl DataArray {
    }
 
    pub fn update(&mut self, setup: &Setup) {
+      println!("{:?}", self.data);
       // Recreate the buffer with the updated data size
       self.buffer = setup.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
          label: Some("Updated Data Buffer"),

@@ -64,7 +64,7 @@ struct Hit {float d; Mat mat; };
 
 #include "aabb.glsl"
 #include "shapes.glsl"
-#include "map.glsl"
+#include "map"
 #include "funcs.glsl"
 #include "rng.glsl"
 
