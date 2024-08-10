@@ -416,7 +416,7 @@ impl Shape {
 
       let material = self.material.compile(comp_data);
 
-      out.push_str(format!("{} {{\n", self.transform.aabb_check(comp_data)).as_str()); // todo bounds check
+      out.push_str(format!("{} {{\n", self.transform.aabb_check(comp_data)).as_str());
 
       let union = union_type.compile(&format!("u{ui}"), &format!("u{ui}s{si}"), si);
 

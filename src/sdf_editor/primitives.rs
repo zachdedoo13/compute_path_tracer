@@ -5,7 +5,7 @@ use egui::{DragValue, Label, Ui};
 use rand::prelude::StdRng;
 use rand::{Rng, SeedableRng};
 use serde::{Deserialize, Serialize};
-use wgpu::{BindGroup, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ShaderStages};
+use wgpu::{BindGroup, BindGroupLayout, BindGroupLayoutDescriptor, BindGroupLayoutEntry, BindingType, Buffer, BufferBindingType, ShaderStages, TextureViewDimension};
 use wgpu::util::DeviceExt;
 use crate::inbuilt::setup::Setup;
 
